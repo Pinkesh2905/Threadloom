@@ -105,6 +105,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+if not DEBUG:
+    # Hashed, compressed filenames + long-lived caching — only turned on in
+    # production because it requires `collectstatic` to have run (the build
+    # step does this on Render); local dev keeps serving straight from disk.
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -170,11 +175,31 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=True, cast=bool)
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL', default=False, cast=bool)
+# Comma-separated list of extra allowed origins (e.g. the deployed Vercel
+# URL) layered on top of the local dev ones, which always stay allowed.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]
+] + [origin for origin in config('CORS_ALLOWED_ORIGINS', default='').split(',') if origin]
+
+# Needed for the Django admin's session-based login to work behind Render's
+# HTTPS-terminating proxy — same idea as CORS_ALLOWED_ORIGINS above, but for
+# same-origin form POSTs rather than cross-origin API calls.
+CSRF_TRUSTED_ORIGINS = [origin for origin in config('CSRF_TRUSTED_ORIGINS', default='').split(',') if origin]
+
+if not DEBUG:
+    # Render's proxy terminates TLS and forwards this header — trust it only
+    # in production, where that proxy is guaranteed to be there and to set
+    # it correctly (never trust it over an untrusted connection).
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # A conservative starting value (one week) rather than the commonly
+    # recommended one year — easy to raise once HTTPS is confirmed stable,
+    # hard to walk back quickly since browsers cache it aggressively.
+    SECURE_HSTS_SECONDS = 604800
 
 # Celery Configuration
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')

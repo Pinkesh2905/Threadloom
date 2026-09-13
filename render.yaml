@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: threadloom-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn threadloom.wsgi:application"
+    healthCheckPath: /api/health/
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CORS_ALLOW_ALL
+        value: "False"
+      # Set to your Vercel URL once the frontend is deployed, e.g.
+      # https://your-app.vercel.app — comma-separate if there's more than one.
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # Set to this service's own onrender.com URL, e.g.
+      # https://threadloom-backend.onrender.com — needed for Django admin
+      # login to work behind Render's proxy.
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: USE_POSTGRES
+        value: "True"
+      # Paste a Neon connection string (use the pooled one, host has
+      # "-pooler" in it) with ?sslmode=require.
+      - key: DATABASE_URL
+        sync: false
+      - key: USE_S3
+        value: "True"
+      # Cloudflare R2 credentials — from an R2 API token, not AWS.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        value: auto
+      # No Redis/worker on the free tier — tasks run inline instead.
+      - key: CELERY_ALWAYS_EAGER
+        value: "True"

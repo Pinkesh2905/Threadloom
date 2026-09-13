@@ -18,7 +18,17 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.s3.*.amazonaws.com',
-      }
+      },
+      {
+        // Cloudflare R2 (the deployed storage backend — see backend/threadloom/settings.py)
+        protocol: 'https',
+        hostname: '*.r2.cloudflarestorage.com',
+      },
+      {
+        // Fallback for locally-served media if USE_S3 is ever off in production.
+        protocol: 'https',
+        hostname: '*.onrender.com',
+      },
     ],
   },
 };
