@@ -1,0 +1,118 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+  --color-bg: #FFFFFF;
+  --color-ink: #141414;
+  --color-secondary: #6B6B6B;
+  --color-accent: #000000;
+  --color-hairline: #E4E4E4;
+  --color-surface-subtle: #F2F2F2;
+
+  /* Explicit 8px-based spacing scale */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 48px;
+  --space-6: 64px;
+  --space-8: 96px;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: #FFFFFF;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Custom clean cards & panel utility */
+.editorial-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-hairline);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.editorial-card-flat {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-hairline);
+}
+
+.editorial-panel {
+  background-color: var(--color-surface-subtle);
+  border: 1px solid var(--color-hairline);
+}
+
+/* Subtle woven-linen texture for section backgrounds */
+.linen-texture {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(20, 20, 20, 0.025) 0px, rgba(20, 20, 20, 0.025) 1px, transparent 1px, transparent 3px),
+    repeating-linear-gradient(0deg, rgba(20, 20, 20, 0.025) 0px, rgba(20, 20, 20, 0.025) 1px, transparent 1px, transparent 3px);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+::-webkit-scrollbar-thumb:active {
+  background: var(--color-ink);
+}
+
+/* Hide scrollbar for clean chip rails */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes threadloom-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-always,
+.animate-spin {
+  animation: threadloom-spin 0.85s linear infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin):not(.animate-spin-always):not([data-spin]),
+  *:not(.animate-spin):not(.animate-spin-always):not([data-spin])::before,
+  *:not(.animate-spin):not(.animate-spin-always):not([data-spin])::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

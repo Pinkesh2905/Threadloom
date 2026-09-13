@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "threadloom-backend",
+      "runtimeExecutable": "C:\\Projects\\Threadloom\\backend\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["manage.py", "runserver", "0.0.0.0:8000"],
+      "port": 8000
+    },
+    {
+      "name": "threadloom-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    }
+  ]
+}
