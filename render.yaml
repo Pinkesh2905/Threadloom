@@ -4,7 +4,10 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    # seed_catalog and ensure_superuser are both idempotent (update_or_create /
+    # skip-if-exists) — safe to run on every build. The free plan has no Shell
+    # access for one-off commands, so this is the only place to run them.
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_catalog && python manage.py ensure_superuser"
     startCommand: "gunicorn threadloom.wsgi:application"
     healthCheckPath: /api/health/
     envVars:
@@ -53,3 +56,10 @@ services:
       # No Redis/worker on the free tier — tasks run inline instead.
       - key: CELERY_ALWAYS_EAGER
         value: "True"
+      # First admin/staff login — created once by ensure_superuser (see
+      # accounts/management/commands/ensure_superuser.py), then left alone
+      # even if these values change later.
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false

@@ -26,21 +26,22 @@
      `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL` (the full
      `https://s3.us-west-002.backblazeb2.com`-style URL), `AWS_S3_REGION_NAME`
      (just the region segment, e.g. `us-west-002`) — the B2 values from step 0.
+   - `DJANGO_SUPERUSER_EMAIL` / `DJANGO_SUPERUSER_PASSWORD` — your first admin
+     login (see step 4 below; the free plan has no Shell tab for
+     `createsuperuser`, so this env-var route replaces it).
    - `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` — leave blank for now,
      come back to these in step 3.
-3. Deploy. The build runs `pip install`, `collectstatic`, and `migrate`
-   automatically (see `buildCommand` in `render.yaml`). Once it's up, note the
-   service URL, e.g. `https://threadloom-backend.onrender.com`.
-4. One-off setup on the fresh database (Render dashboard → your service →
-   **Shell**):
-   ```bash
-   python manage.py seed_catalog
-   python manage.py createsuperuser
-   ```
-   The catalog seed populates `GarmentType`/`PrintZone`/`GarmentStyleOption` —
-   without it the storefront has nothing to design. `createsuperuser` gives
-   you a first staff account for `/admin/orders` (or register normally through
-   the site and flip `is_staff` on that user from Django admin instead).
+3. Deploy. The build runs `pip install`, `collectstatic`, `migrate`, then two
+   idempotent management commands automatically (see `buildCommand` in
+   `render.yaml`) — no Shell access needed:
+   - `seed_catalog` populates `GarmentType`/`PrintZone`/`GarmentStyleOption`
+     (safe to rerun every deploy — it's all `update_or_create`).
+   - `ensure_superuser` creates one admin account from the
+     `DJANGO_SUPERUSER_EMAIL`/`PASSWORD` env vars above, but only if no user
+     with that email exists yet — it won't touch an existing account, so
+     changing that password env var later does nothing (use Django admin's
+     own change-password screen once logged in instead).
+   Once it's up, note the service URL, e.g. `https://threadloom-backend.onrender.com`.
 
 ## 2. Frontend on Vercel
 
