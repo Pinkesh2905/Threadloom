@@ -1,13 +1,18 @@
-# Deploying Threadloom (free tier: Render + Vercel + Neon + Cloudflare R2)
+# Deploying Threadloom (free tier: Render + Vercel + Neon + Backblaze B2)
 
 ## 0. Prerequisites (create these first, note the credentials)
 
 - **Neon** (https://neon.tech) — new project, then copy the **pooled** connection
   string (the one with `-pooler` in the hostname). Make sure it ends with
   `?sslmode=require`.
-- **Cloudflare R2** (https://dash.cloudflare.com → R2) — create a bucket, then
-  create an R2 API token (not an AWS account) and note: Access Key ID, Secret
-  Access Key, Account ID (the endpoint is `https://<account_id>.r2.cloudflarestorage.com`).
+- **Backblaze B2** (https://www.backblaze.com/sign-up/cloud-storage) — create a
+  private bucket, then create an Application Key scoped to just that bucket
+  (Read and Write). Note: keyID, applicationKey, bucket name, and the bucket's
+  S3-compatible endpoint (shown on the bucket's page, e.g.
+  `s3.us-west-002.backblazeb2.com`) — the region segment in that hostname
+  (`us-west-002`) is also needed separately.
+  (Cloudflare R2 is an equally good alternative here if you have a card to
+  verify it with — same idea, `AWS_S3_REGION_NAME` would just be `auto`.)
 
 ## 1. Backend on Render
 
@@ -17,8 +22,10 @@
 2. Render will prompt for every env var marked `sync: false` in `render.yaml`.
    Fill in:
    - `DATABASE_URL` — the Neon pooled connection string from step 0.
-   - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_STORAGE_BUCKET_NAME`,
-     `AWS_S3_ENDPOINT_URL` — the R2 values from step 0.
+   - `AWS_ACCESS_KEY_ID` (keyID), `AWS_SECRET_ACCESS_KEY` (applicationKey),
+     `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_ENDPOINT_URL` (the full
+     `https://s3.us-west-002.backblazeb2.com`-style URL), `AWS_S3_REGION_NAME`
+     (just the region segment, e.g. `us-west-002`) — the B2 values from step 0.
    - `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` — leave blank for now,
      come back to these in step 3.
 3. Deploy. The build runs `pip install`, `collectstatic`, and `migrate`

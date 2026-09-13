@@ -35,17 +35,21 @@ services:
         sync: false
       - key: USE_S3
         value: "True"
-      # Cloudflare R2 credentials — from an R2 API token, not AWS.
+      # Backblaze B2 credentials — keyID/applicationKey from an Application
+      # Key scoped to the bucket, not AWS.
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: AWS_STORAGE_BUCKET_NAME
         sync: false
+      # Full endpoint, e.g. https://s3.us-west-002.backblazeb2.com
       - key: AWS_S3_ENDPOINT_URL
         sync: false
+      # The region segment out of that same endpoint, e.g. us-west-002 —
+      # B2 doesn't support the 'auto' shortcut Cloudflare R2 does.
       - key: AWS_S3_REGION_NAME
-        value: auto
+        sync: false
       # No Redis/worker on the free tier — tasks run inline instead.
       - key: CELERY_ALWAYS_EAGER
         value: "True"

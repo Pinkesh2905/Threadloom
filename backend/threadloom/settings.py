@@ -115,32 +115,34 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # S3-compatible object storage (works with real AWS S3 or any compatible
-# provider, e.g. Cloudflare R2 — set AWS_S3_ENDPOINT_URL for a non-AWS
-# provider, leave it unset to talk to real AWS S3 instead).
+# provider — Backblaze B2, Cloudflare R2, etc. — set AWS_S3_ENDPOINT_URL for
+# a non-AWS provider, leave it unset to talk to real AWS S3 instead).
 USE_S3 = config('USE_S3', default=False, cast=bool)
 if USE_S3:
     AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-    # R2 has no AWS-style regions — Cloudflare's own docs say to use
-    # 'auto' here. Only defaults to 'auto' when an endpoint override is
-    # present (i.e. a non-AWS provider); real AWS S3 still defaults to
-    # 'us-east-1' when AWS_S3_ENDPOINT_URL is left unset.
     AWS_S3_ENDPOINT_URL = config('AWS_S3_ENDPOINT_URL', default=None)
+    # Non-AWS providers vary on region: Backblaze B2 wants the real region
+    # segment out of its endpoint hostname (e.g. 'us-west-002'), while
+    # Cloudflare R2 accepts the literal string 'auto'. Either way this must
+    # be set explicitly for a non-AWS provider — the 'auto' default here
+    # only applies when no endpoint override is given at all, i.e. real AWS
+    # S3, where it instead falls back to 'us-east-1'.
     AWS_S3_REGION_NAME = config(
         'AWS_S3_REGION_NAME', default='auto' if AWS_S3_ENDPOINT_URL else 'us-east-1',
     )
-    # R2 (and other non-AWS providers) need SigV4 spelled out explicitly.
+    # Non-AWS providers need SigV4 spelled out explicitly.
     AWS_S3_SIGNATURE_VERSION = 's3v4'
-    # A public custom domain in front of the bucket (e.g. an R2 custom
-    # domain). Leave unset — the default — to build URLs straight from the
-    # bucket/endpoint with a presigned querystring instead, which is what
-    # a private bucket with no custom domain needs.
+    # A public custom domain in front of the bucket. Leave unset — the
+    # default — to build URLs straight from the bucket/endpoint with a
+    # presigned querystring instead, which is what a private bucket with no
+    # custom domain needs.
     AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default=None)
-    # No ACL is set on uploaded objects — modern buckets (and R2 entirely)
-    # have ACLs disabled and reject ACL writes outright. Privacy instead
-    # comes from the bucket itself being private and every download URL
-    # being presigned and short-lived.
+    # No ACL is set on uploaded objects — modern buckets (B2 and R2
+    # included) have ACLs disabled and reject ACL writes outright. Privacy
+    # instead comes from the bucket itself being private and every download
+    # URL being presigned and short-lived.
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = True
     AWS_QUERYSTRING_EXPIRE = 3600

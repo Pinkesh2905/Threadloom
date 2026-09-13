@@ -20,7 +20,12 @@ const nextConfig: NextConfig = {
         hostname: '*.s3.*.amazonaws.com',
       },
       {
-        // Cloudflare R2 (the deployed storage backend — see backend/threadloom/settings.py)
+        // Backblaze B2 (the deployed storage backend — see backend/threadloom/settings.py)
+        protocol: 'https',
+        hostname: 's3.*.backblazeb2.com',
+      },
+      {
+        // Cloudflare R2, in case storage ever moves there instead.
         protocol: 'https',
         hostname: '*.r2.cloudflarestorage.com',
       },
