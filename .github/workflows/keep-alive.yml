@@ -1,0 +1,19 @@
+name: Keep Render backend awake
+
+# Render's free web service spins down after ~15 min of no incoming
+# requests, and the first request after that pays a 30-50s cold-start
+# penalty. Pinging the health check well inside that window keeps it warm.
+# GitHub's scheduled-workflow timing isn't exact (runs can slip a few
+# minutes during high platform load), which is fine here since 10 min is
+# already comfortably under the 15 min spin-down threshold.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health check
+        run: curl -sf https://threadloom-backend.onrender.com/api/health/
