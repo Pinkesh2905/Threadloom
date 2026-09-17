@@ -8,7 +8,13 @@ services:
     # skip-if-exists) — safe to run on every build. The free plan has no Shell
     # access for one-off commands, so this is the only place to run them.
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_catalog && python manage.py ensure_superuser"
-    startCommand: "gunicorn threadloom.wsgi:application"
+    # --timeout 120: gunicorn's 30s default kills the worker mid-request for
+    # the image-upload pipeline (rembg + k-means + vtracer), which runs
+    # synchronously in-request since there's no Celery worker on this plan
+    # (CELERY_ALWAYS_EAGER=True) and can take longer than 30s on the free
+    # tier's throttled CPU. --workers 1: keeps memory to one rembg/onnxruntime
+    # model instance on this plan's 512MB limit instead of one per worker.
+    startCommand: "gunicorn threadloom.wsgi:application --timeout 120 --workers 1"
     healthCheckPath: /api/health/
     envVars:
       - key: PYTHON_VERSION
