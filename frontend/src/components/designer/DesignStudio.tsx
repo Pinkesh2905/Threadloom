@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Type, Image as ImageIcon, Trash2, Loader2, ShoppingBag, Save,
-  Undo2, Redo2, ChevronUp, ChevronDown, Copy, Palette, Sparkles, Box, Square, Scissors, Link2, Check,
+  Undo2, Redo2, ChevronUp, ChevronDown, Copy, Palette, Sparkles, Box, Square, Scissors, Link2, Check, RefreshCw,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { downloadAuthenticatedFile } from '@/lib/download';
@@ -130,6 +130,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [isRefreshingAddresses, setIsRefreshingAddresses] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -377,6 +378,24 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
       setSelectedAddressId(defaultAddress?.id ?? null);
     } catch {
       setAddresses([]);
+    }
+  };
+
+  // "Manage"/"Add one" open the addresses page in a new tab (rather than
+  // navigating away) so this order-in-progress isn't lost — this refetches
+  // the list in place once they're back, instead of requiring a reload.
+  const refreshAddresses = async () => {
+    setIsRefreshingAddresses(true);
+    try {
+      const res = await api.get<Address[]>('/auth/addresses/');
+      setAddresses(res.data);
+      setSelectedAddressId((prev) => {
+        if (prev && res.data.some((a) => a.id === prev)) return prev;
+        const defaultAddress = res.data.find((a) => a.is_default) ?? res.data[0];
+        return defaultAddress?.id ?? null;
+      });
+    } finally {
+      setIsRefreshingAddresses(false);
     }
   };
 
@@ -861,17 +880,34 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary">Ship To</span>
-                    <Link href="/account/addresses" className="text-[11px] font-semibold text-accent">
-                      Manage
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <button
+                        onClick={refreshAddresses}
+                        disabled={isRefreshingAddresses}
+                        title="Refresh address list"
+                        className="text-secondary hover:text-ink active:text-ink disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isRefreshingAddresses ? 'animate-spin' : ''}`} />
+                      </button>
+                      <Link
+                        href="/account/addresses"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-semibold text-accent"
+                      >
+                        Manage
+                      </Link>
+                    </span>
                   </div>
                   {addresses.length === 0 ? (
                     <p className="text-xs text-secondary">
                       No saved addresses.{' '}
-                      <Link href="/account/addresses" className="text-accent font-semibold">
+                      <Link href="/account/addresses" target="_blank" rel="noopener noreferrer" className="text-accent font-semibold">
                         Add one
                       </Link>{' '}
-                      or place this order without shipping details.
+                      (opens in a new tab — your order stays open here; use the refresh
+                      icon above once you've saved it), or place this order without
+                      shipping details.
                     </p>
                   ) : (
                     <div className="space-y-1.5 max-h-32 overflow-y-auto">
