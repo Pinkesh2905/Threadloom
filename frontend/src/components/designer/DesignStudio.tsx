@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Type, Image as ImageIcon, Trash2, Loader2, ShoppingBag, Save,
   Undo2, Redo2, ChevronUp, ChevronDown, Copy, Palette, Sparkles, Box, Square, Scissors, Link2, Check, RefreshCw,
+  Wallet, Spline,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 import { downloadAuthenticatedFile } from '@/lib/download';
 import { computePrice } from '@/lib/pricing';
-import { GARMENT_VIEWBOX } from '@/lib/garmentSvgs';
-import { GarmentSilhouette } from './GarmentSilhouette';
+import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
+import { DESIGN_FONTS, FONT_GROUPS } from '@/lib/designFonts';
+import { GarmentFigure, GarmentClipPath } from './GarmentFigure';
 import { GarmentCanvasClient } from './GarmentCanvasClient';
 import { Garment3DPreviewClient } from './Garment3DPreviewClient';
 import type { GarmentTypeDetail, DesignLayer, Design, Address } from '@/types/designer';
@@ -107,6 +110,9 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
   }, [undo, redo]);
 
   const [activeZoneKey, setActiveZoneKey] = useState<string>('');
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
+  const artClipId = useId().replace(/:/g, '');
+  const user = useAuthStore((s) => s.user);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [textDraft, setTextDraft] = useState('');
 
@@ -182,6 +188,8 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
     return computePrice(garmentType, doc.selectedOptions, doc.layers);
   }, [garmentType, doc]);
 
+  // The print zone is now an advisory "press can reach here" guide rather
+  // than a boundary artwork is trapped inside.
   const activeZone = garmentType?.print_zones.find((z) => z.key === activeZoneKey);
   // Memoized so Konva's canvas-export effect (keyed on this array's identity)
   // only re-fires when the layers actually change, not on unrelated re-renders.
@@ -190,6 +198,8 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
     [doc.layers, activeZoneKey]
   );
   const selectedLayer = doc.layers.find((l) => l.id === selectedLayerId) || null;
+
+  const garmentView: 'front' | 'back' = activeZoneKey === 'back' ? 'back' : 'front';
 
   const optionsByCategory = useMemo(() => {
     if (!garmentType) return [];
@@ -205,24 +215,45 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
     setDoc((prev) => ({ ...prev, layers: prev.layers.map((l) => (l.id === id ? { ...l, ...partial } : l)) }), recordHistory);
   };
 
+  /** Drop new layers into the middle of the active print area. */
+  const defaultPlacement = () => ({
+    x: activeZone ? ((activeZone.x + activeZone.width / 2) / GARMENT_VIEWBOX.width) * 100 : 50,
+    y: activeZone ? ((activeZone.y + activeZone.height / 2) / GARMENT_VIEWBOX.height) * 100 : 45,
+  });
+
   const addTextLayer = () => {
     if (!activeZoneKey) return;
     const layer: DesignLayer = {
       id: nextLayerId(),
       zone: activeZoneKey,
       type: 'text',
-      x: 50,
-      y: 50,
+      ...defaultPlacement(),
       rotation: 0,
       scale: 1,
       text: textDraft.trim() || 'YOUR TEXT',
       color: '#141414',
       fontFamily: 'sans',
-      fontSize: 18,
+      fontSize: 11,
+      curve: 0,
     };
     setDoc((prev) => ({ ...prev, layers: [...prev.layers, layer] }));
     setSelectedLayerId(layer.id);
     setTextDraft('');
+  };
+
+  const addPocketLayer = () => {
+    if (!activeZoneKey) return;
+    const layer: DesignLayer = {
+      id: nextLayerId(),
+      zone: activeZoneKey,
+      type: 'pocket',
+      ...defaultPlacement(),
+      rotation: 0,
+      scale: 1,
+      pocketStyle: 'patch',
+    };
+    setDoc((prev) => ({ ...prev, layers: [...prev.layers, layer] }));
+    setSelectedLayerId(layer.id);
   };
 
   const handleImageSelected = async (file: File) => {
@@ -239,8 +270,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
         id: nextLayerId(),
         zone: activeZoneKey,
         type: 'image',
-        x: 50,
-        y: 50,
+        ...defaultPlacement(),
         rotation: 0,
         scale: 1,
         imageUrl,
@@ -289,6 +319,11 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
 
   const saveDesign = async (): Promise<Design | null> => {
     if (!garmentType) return null;
+    if (!user) {
+      // Guests can design freely; the account is only needed to persist it.
+      setShowSignUpPrompt(true);
+      return null;
+    }
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -370,6 +405,10 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
   };
 
   const openOrderPanel = async () => {
+    if (!user) {
+      setShowSignUpPrompt(true);
+      return;
+    }
     setShowOrderPanel(true);
     try {
       const res = await api.get<Address[]>('/auth/addresses/');
@@ -511,34 +550,31 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                 keep running even while the 3D tab is showing, or edits made
                 while looking at 3D would silently never reach the mesh. */}
             <div className={is3D ? 'hidden' : 'contents'}>
-              <GarmentSilhouette
+              <GarmentClipPath id={artClipId} svgKey={garmentType.svg_key} view={garmentView} />
+              <GarmentFigure
                 svgKey={garmentType.svg_key}
-                view={activeZoneKey === 'back' ? 'back' : 'front'}
+                view={garmentView}
                 color={doc.baseColor}
-                activeZone={activeZone}
-                className="absolute inset-0 w-full h-full p-4"
+                printZone={activeZone}
+                className="absolute inset-0 w-full h-full"
               />
-              {activeZone && (
-                <div
-                  className="absolute overflow-hidden"
-                  style={{
-                    left: activeZone.x * DISPLAY_SCALE + 16,
-                    top: activeZone.y * DISPLAY_SCALE + 16,
-                    width: activeZone.width * DISPLAY_SCALE,
-                    height: activeZone.height * DISPLAY_SCALE,
-                  }}
-                >
-                  <GarmentCanvasClient
-                    widthPx={activeZone.width * DISPLAY_SCALE}
-                    heightPx={activeZone.height * DISPLAY_SCALE}
-                    layers={zoneLayers}
-                    selectedLayerId={selectedLayerId}
-                    onSelect={setSelectedLayerId}
-                    onChangeLayer={updateLayer}
-                    onExport={(dataUrl) => setZoneTextures((prev) => ({ ...prev, [activeZoneKey]: dataUrl }))}
-                  />
-                </div>
-              )}
+              {/* The artwork canvas spans the whole garment — placement is
+                  free — and is clipped to the silhouette so nothing can be
+                  dragged off the fabric. */}
+              <div
+                className="absolute inset-0"
+                style={{ clipPath: `url(#${artClipId})`, WebkitClipPath: `url(#${artClipId})` }}
+              >
+                <GarmentCanvasClient
+                  widthPx={DISPLAY_WIDTH}
+                  heightPx={DISPLAY_HEIGHT}
+                  layers={zoneLayers}
+                  selectedLayerId={selectedLayerId}
+                  onSelect={setSelectedLayerId}
+                  onChangeLayer={updateLayer}
+                  onExport={(dataUrl) => setZoneTextures((prev) => ({ ...prev, [activeZoneKey]: dataUrl }))}
+                />
+              </div>
             </div>
             {is3D && (
               <Garment3DPreviewClient
@@ -558,7 +594,9 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
 
         {/* Add content toolbar */}
         <div className="editorial-card rounded-2xl p-sp-3 space-y-sp-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary">Add to {activeZone?.label}</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary">
+            Add to {activeZone?.label} — drag anywhere on the garment
+          </span>
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1 flex gap-2">
               <input
@@ -582,6 +620,12 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
             >
               {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
               Upload Image
+            </button>
+            <button
+              onClick={addPocketLayer}
+              className="px-3 py-2 rounded-lg bg-white border border-hairline hover:bg-surface-subtle active:bg-surface-subtle text-ink text-xs font-semibold flex items-center justify-center gap-1.5"
+            >
+              <Wallet className="w-3.5 h-3.5" /> Add Pocket
             </button>
             <input
               ref={fileInputRef}
@@ -617,8 +661,16 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                   }`}
                 >
                   <span className="flex items-center gap-2 text-xs text-ink truncate">
-                    {layer.type === 'text' ? <Type className="w-3.5 h-3.5 text-secondary shrink-0" /> : <ImageIcon className="w-3.5 h-3.5 text-secondary shrink-0" />}
-                    <span className="truncate">{layer.type === 'text' ? layer.text : 'Uploaded image'}</span>
+                    {layer.type === 'text' && <Type className="w-3.5 h-3.5 text-secondary shrink-0" />}
+                    {layer.type === 'image' && <ImageIcon className="w-3.5 h-3.5 text-secondary shrink-0" />}
+                    {layer.type === 'pocket' && <Wallet className="w-3.5 h-3.5 text-secondary shrink-0" />}
+                    <span className="truncate capitalize">
+                      {layer.type === 'text'
+                        ? layer.text
+                        : layer.type === 'pocket'
+                          ? `${layer.pocketStyle ?? 'patch'} pocket`
+                          : 'Uploaded image'}
+                    </span>
                   </span>
                   <span className="flex items-center gap-0.5 shrink-0">
                     <button onClick={(e) => { e.stopPropagation(); moveLayer(layer.id, 'backward'); }} className="p-1 text-secondary hover:text-ink active:text-ink" title="Send backward">
@@ -639,7 +691,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
           <div className="editorial-card rounded-2xl p-sp-3 space-y-sp-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-secondary">
-                Editing {selectedLayer.type === 'text' ? 'Text' : 'Image'}
+                Editing {selectedLayer.type === 'text' ? 'Text' : selectedLayer.type === 'pocket' ? 'Pocket' : 'Image'}
               </span>
               <span className="flex items-center gap-2">
                 <button
@@ -668,20 +720,46 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                     />
                   ))}
                 </div>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => updateLayer(selectedLayer.id, { fontFamily: 'sans' })}
-                    className={`px-2.5 py-1 rounded-md text-xs border ${selectedLayer.fontFamily === 'sans' ? 'bg-ink text-white border-ink' : 'border-hairline text-secondary'}`}
-                  >
-                    Sans
-                  </button>
-                  <button
-                    onClick={() => updateLayer(selectedLayer.id, { fontFamily: 'serif' })}
-                    className={`px-2.5 py-1 rounded-md text-xs italic border ${selectedLayer.fontFamily === 'serif' ? 'bg-ink text-white border-ink' : 'border-hairline text-secondary'}`}
-                  >
-                    Serif
-                  </button>
-                </div>
+                <select
+                  value={selectedLayer.fontFamily ?? 'sans'}
+                  onChange={(e) => updateLayer(selectedLayer.id, { fontFamily: e.target.value })}
+                  className="px-2.5 py-1.5 rounded-md text-xs border border-hairline bg-white text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+                >
+                  {FONT_GROUPS.map((group) => (
+                    <optgroup key={group} label={group}>
+                      {DESIGN_FONTS.filter((f) => f.group === group).map((font) => (
+                        <option key={font.key} value={font.key}>{font.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+
+                <label className="flex items-center gap-1.5 text-[11px] text-secondary">
+                  <Spline className="w-3.5 h-3.5" />
+                  Curve
+                  <input
+                    type="range"
+                    min={-120}
+                    max={120}
+                    step={5}
+                    value={selectedLayer.curve ?? 0}
+                    onChange={(e) => updateLayer(selectedLayer.id, { curve: Number(e.target.value) }, false)}
+                    className="w-20 accent-[var(--color-accent)]"
+                  />
+                </label>
+
+                <label className="flex items-center gap-1.5 text-[11px] text-secondary">
+                  Size
+                  <input
+                    type="range"
+                    min={4}
+                    max={40}
+                    step={1}
+                    value={selectedLayer.fontSize ?? 11}
+                    onChange={(e) => updateLayer(selectedLayer.id, { fontSize: Number(e.target.value) }, false)}
+                    className="w-20 accent-[var(--color-accent)]"
+                  />
+                </label>
                 <button
                   onClick={() => downloadEmbroidery(selectedLayer)}
                   disabled={isDigitizing || !selectedLayer.text?.trim()}
@@ -692,6 +770,26 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                   Embroidery File
                 </button>
                 {embroideryError && <p className="text-[11px] text-red-600 w-full">{embroideryError}</p>}
+              </div>
+            )}
+            {selectedLayer.type === 'pocket' && (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex gap-1.5">
+                  {(['patch', 'rounded', 'flap'] as const).map((style) => (
+                    <button
+                      key={style}
+                      onClick={() => updateLayer(selectedLayer.id, { pocketStyle: style })}
+                      className={`px-2.5 py-1 rounded-md text-xs border capitalize transition-colors ${
+                        (selectedLayer.pocketStyle ?? 'patch') === style
+                          ? 'bg-ink text-white border-ink'
+                          : 'border-hairline text-secondary hover:text-ink active:text-ink'
+                      }`}
+                    >
+                      {style}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-secondary">Drag it anywhere — chest, hip, sleeve.</p>
               </div>
             )}
             {selectedLayer.type === 'image' && (
@@ -824,6 +922,36 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
           </button>
         </div>
       </div>
+
+      {/* Guests can design the whole thing; the account only gates keeping it. */}
+      {showSignUpPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-sp-4 space-y-sp-3 text-center">
+            <h3 className="font-serif text-xl text-ink">Create a free account to keep this.</h3>
+            <p className="text-sm text-secondary">
+              Your design stays exactly as you left it — an account just gives it somewhere to live,
+              and lets you order it.
+            </p>
+            <div className="flex gap-2 pt-sp-1">
+              <button
+                onClick={() => setShowSignUpPrompt(false)}
+                className="flex-1 py-2.5 rounded-full border border-hairline text-secondary text-xs font-semibold uppercase tracking-wider"
+              >
+                Keep Designing
+              </button>
+              <button
+                onClick={() => router.push('/register')}
+                className="flex-1 py-2.5 rounded-full bg-ink hover:bg-black active:bg-black active:scale-[0.98] text-white text-xs font-semibold uppercase tracking-wider"
+              >
+                Create Account
+              </button>
+            </div>
+            <Link href="/login" className="block text-[11px] text-secondary hover:text-ink">
+              Already have one? Sign in
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Order panel */}
       {showOrderPanel && (

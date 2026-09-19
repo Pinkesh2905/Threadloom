@@ -182,10 +182,10 @@ export default function LandingPage() {
             className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-sp-1 w-full sm:w-auto"
           >
             <Link
-              href={isInitialized && user ? "/studio" : "/register"}
+              href={isInitialized && user ? "/studio" : "/shop"}
               className="px-7 py-3.5 sm:py-4 rounded-full bg-ink hover:bg-black active:bg-black active:scale-[0.98] text-white font-semibold text-xs uppercase tracking-wider transition-colors duration-200 shadow-md flex items-center justify-center space-x-2 group w-full sm:w-auto"
             >
-              <span>{isInitialized && user ? "Enter Your Studio" : "Start Your First Design"}</span>
+              <span>{isInitialized && user ? "Enter Your Studio" : "Browse & Start Designing"}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </Link>
 

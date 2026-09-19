@@ -5,7 +5,8 @@ import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
-import { GARMENT_VIEWBOX, getGarmentSvg } from '@/lib/garmentSvgs';
+import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
+import { getGarmentArt } from '@/lib/garmentCatalog';
 import type { PrintZone } from '@/types/designer';
 
 // Everything below is built in "raw" SVG viewBox units (same space the 2D
@@ -32,10 +33,13 @@ const CX_RAW = GARMENT_VIEWBOX.width / 2;
 const CY_RAW = GARMENT_VIEWBOX.height / 2;
 
 const GarmentBodyMeshes: React.FC<{ svgKey: string; color: string }> = ({ svgKey, color }) => {
-  const svg = getGarmentSvg(svgKey);
+  const art = getGarmentArt(svgKey, 'back');
+  // The hood (and anything else behind the shoulders) extrudes as its own
+  // shell so it reads as volume rather than a flat decal on the body.
+  const behindPath = art.behind[0];
 
   const bodyGeometry = useMemo(() => {
-    const shapes = pathToShapes(svg.back);
+    const shapes = pathToShapes(art.body);
     const geo = new THREE.ExtrudeGeometry(shapes, {
       depth: DEPTH_RAW,
       bevelEnabled: true,
@@ -46,11 +50,11 @@ const GarmentBodyMeshes: React.FC<{ svgKey: string; color: string }> = ({ svgKey
     });
     geo.translate(-CX_RAW, -CY_RAW, -DEPTH_RAW / 2);
     return geo;
-  }, [svg.back]);
+  }, [art.body]);
 
   const hoodGeometry = useMemo(() => {
-    if (!svg.frontOverlay) return null;
-    const shapes = pathToShapes(svg.frontOverlay);
+    if (!behindPath) return null;
+    const shapes = pathToShapes(behindPath);
     const depth = DEPTH_RAW * 0.6;
     const geo = new THREE.ExtrudeGeometry(shapes, {
       depth,
@@ -62,7 +66,7 @@ const GarmentBodyMeshes: React.FC<{ svgKey: string; color: string }> = ({ svgKey
     });
     geo.translate(-CX_RAW, -CY_RAW, DEPTH_RAW / 2 - depth * 0.5);
     return geo;
-  }, [svg.frontOverlay]);
+  }, [behindPath]);
 
   return (
     <>

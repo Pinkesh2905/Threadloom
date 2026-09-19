@@ -15,19 +15,26 @@ class GarmentStyleOptionSerializer(serializers.ModelSerializer):
 
 
 class GarmentTypeListSerializer(serializers.ModelSerializer):
+    category_label = serializers.CharField(source='get_category_display', read_only=True)
+
     class Meta:
         model = GarmentType
-        fields = ('id', 'name', 'slug', 'svg_key', 'base_price')
+        fields = (
+            'id', 'name', 'slug', 'svg_key', 'base_price',
+            'department', 'category', 'category_label', 'description',
+        )
 
 
 class GarmentTypeDetailSerializer(serializers.ModelSerializer):
     print_zones = PrintZoneSerializer(many=True, read_only=True)
     style_options = GarmentStyleOptionSerializer(many=True, read_only=True)
+    category_label = serializers.CharField(source='get_category_display', read_only=True)
 
     class Meta:
         model = GarmentType
         fields = (
             'id', 'name', 'slug', 'description', 'svg_key',
+            'department', 'category', 'category_label',
             'viewbox_width', 'viewbox_height', 'base_price',
             'print_zones', 'style_options',
         )

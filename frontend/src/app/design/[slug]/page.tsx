@@ -4,6 +4,7 @@ import React, { Suspense, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { Navbar } from '@/components/Navbar';
+import { StorefrontHeader } from '@/components/StorefrontHeader';
 import { DesignStudio } from '@/components/designer/DesignStudio';
 
 function DesignStudioInner() {
@@ -12,13 +13,17 @@ function DesignStudioInner() {
   const searchParams = useSearchParams();
   const { user, isInitialized } = useAuthStore();
 
+  // Designing is open to everyone — an account is only required to save or
+  // order, which the studio prompts for at that point. Making people sign
+  // up before they've seen a product loses them for no reason.
   useEffect(() => {
-    if (isInitialized && !user) {
+    if (isInitialized && !user && searchParams.get('d')) {
+      // Resuming a saved design does need the owner signed in.
       router.replace('/login');
     }
-  }, [isInitialized, user, router]);
+  }, [isInitialized, user, router, searchParams]);
 
-  if (!isInitialized || !user) {
+  if (!isInitialized) {
     return null;
   }
 
@@ -27,7 +32,7 @@ function DesignStudioInner() {
 
   return (
     <div className="min-h-screen bg-bg font-sans">
-      <Navbar />
+      {user ? <Navbar /> : <StorefrontHeader />}
       <DesignStudio slug={params.slug} initialDesignId={initialDesignId} />
     </div>
   );

@@ -19,12 +19,18 @@ export interface GarmentStyleOption {
   is_default: boolean;
 }
 
+export type Department = 'men' | 'women' | 'unisex';
+
 export interface GarmentTypeSummary {
   id: number;
   name: string;
   slug: string;
   svg_key: string;
   base_price: string;
+  department: Department;
+  category: string;
+  category_label: string;
+  description: string;
 }
 
 export interface GarmentTypeDetail extends GarmentTypeSummary {
@@ -35,13 +41,17 @@ export interface GarmentTypeDetail extends GarmentTypeSummary {
   style_options: GarmentStyleOption[];
 }
 
-export type LayerType = 'text' | 'image';
+export type LayerType = 'text' | 'image' | 'pocket';
 
 export interface DesignLayer {
   id: string;
+  /** Which side of the garment the layer sits on: 'front' or 'back'. */
   zone: string;
   type: LayerType;
-  /** Position as a percentage (0-100) of the print zone's own box. */
+  /**
+   * Position as a percentage (0-100) of the whole garment viewBox — artwork
+   * can sit anywhere on the garment, not just inside a print rectangle.
+   */
   x: number;
   y: number;
   rotation: number;
@@ -49,8 +59,15 @@ export interface DesignLayer {
   // text layers
   text?: string;
   color?: string;
-  fontFamily?: 'serif' | 'sans';
+  /** Key into DESIGN_FONTS (see lib/designFonts.ts). */
+  fontFamily?: string;
+  /** In garment viewBox units, not pixels, so it means the same printed
+   *  size regardless of how big the canvas is drawn on screen. */
   fontSize?: number;
+  /** Bend text along an arc, in degrees. 0 is a straight baseline. */
+  curve?: number;
+  // pocket layers
+  pocketStyle?: 'patch' | 'rounded' | 'flap';
   // image layers
   imageUrl?: string;
   vectorUrl?: string;

@@ -6,7 +6,7 @@ import { Loader2, Sparkles } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/Navbar';
-import { GarmentSilhouette } from '@/components/designer/GarmentSilhouette';
+import { GarmentFigure } from '@/components/designer/GarmentFigure';
 import type { Design } from '@/types/designer';
 
 export default function TemplateGalleryPage() {
@@ -64,7 +64,7 @@ export default function TemplateGalleryPage() {
             {templates.map((template) => (
               <div key={template.id} className="editorial-card rounded-2xl p-sp-3">
                 <div className="bg-surface-subtle rounded-xl p-3 mb-sp-2">
-                  <GarmentSilhouette
+                  <GarmentFigure
                     svgKey={template.garment_type_svg_key}
                     view="front"
                     color={template.base_color}

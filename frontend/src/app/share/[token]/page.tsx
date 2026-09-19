@@ -1,19 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Loader2, ShoppingBag } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThreadloomLogo } from '@/components/ThreadloomLogo';
-import { GarmentSilhouette } from '@/components/designer/GarmentSilhouette';
+import { GarmentFigure, GarmentClipPath } from '@/components/designer/GarmentFigure';
 import { GarmentCanvasClient } from '@/components/designer/GarmentCanvasClient';
-import { GARMENT_VIEWBOX } from '@/lib/garmentSvgs';
+import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
 import type { PublicDesign, GarmentTypeDetail } from '@/types/designer';
 
 const DISPLAY_WIDTH = 360;
-const DISPLAY_SCALE = DISPLAY_WIDTH / GARMENT_VIEWBOX.width;
-const DISPLAY_HEIGHT = GARMENT_VIEWBOX.height * DISPLAY_SCALE;
+const DISPLAY_HEIGHT = (GARMENT_VIEWBOX.height / GARMENT_VIEWBOX.width) * DISPLAY_WIDTH;
 
 export default function SharedDesignPage() {
   const { token } = useParams<{ token: string }>();
@@ -42,7 +41,8 @@ export default function SharedDesignPage() {
     };
   }, [token]);
 
-  const activeZone = garmentType?.print_zones.find((z) => z.key === activeZoneKey);
+  const clipId = useId().replace(/:/g, '');
+  const garmentView: 'front' | 'back' = activeZoneKey === 'back' ? 'back' : 'front';
   const zoneLayers = design?.layers.filter((l) => l.zone === activeZoneKey) ?? [];
 
   if (notFound) {
@@ -108,33 +108,26 @@ export default function SharedDesignPage() {
             className="relative mx-auto bg-surface-subtle rounded-3xl border border-hairline"
             style={{ width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT }}
           >
-            <GarmentSilhouette
+            <GarmentClipPath id={clipId} svgKey={garmentType.svg_key} view={garmentView} />
+            <GarmentFigure
               svgKey={garmentType.svg_key}
-              view={activeZoneKey === 'back' ? 'back' : 'front'}
+              view={garmentView}
               color={design.base_color}
-              activeZone={activeZone}
-              className="absolute inset-0 w-full h-full p-4"
+              className="absolute inset-0 w-full h-full"
             />
-            {activeZone && (
-              <div
-                className="absolute overflow-hidden pointer-events-none"
-                style={{
-                  left: activeZone.x * DISPLAY_SCALE + 16,
-                  top: activeZone.y * DISPLAY_SCALE + 16,
-                  width: activeZone.width * DISPLAY_SCALE,
-                  height: activeZone.height * DISPLAY_SCALE,
-                }}
-              >
-                <GarmentCanvasClient
-                  widthPx={activeZone.width * DISPLAY_SCALE}
-                  heightPx={activeZone.height * DISPLAY_SCALE}
-                  layers={zoneLayers}
-                  selectedLayerId={null}
-                  onSelect={() => {}}
-                  onChangeLayer={() => {}}
-                />
-              </div>
-            )}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ clipPath: `url(#${clipId})`, WebkitClipPath: `url(#${clipId})` }}
+            >
+              <GarmentCanvasClient
+                widthPx={DISPLAY_WIDTH}
+                heightPx={DISPLAY_HEIGHT}
+                layers={zoneLayers}
+                selectedLayerId={null}
+                onSelect={() => {}}
+                onChangeLayer={() => {}}
+              />
+            </div>
           </div>
         </div>
 

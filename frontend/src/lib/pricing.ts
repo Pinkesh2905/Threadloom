@@ -9,6 +9,9 @@ const ZONE_SETUP_FEE = 5.0;
 const LAYER_FEE_BY_TYPE: Record<string, number> = {
   text: 2.0,
   image: 4.0,
+  // A pocket is cut, hemmed and stitched on rather than printed, so it's
+  // priced as construction rather than as another screen.
+  pocket: 6.0,
 };
 
 export function computePrice(

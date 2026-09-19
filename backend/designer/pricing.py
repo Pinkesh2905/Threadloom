@@ -13,6 +13,9 @@ ZONE_SETUP_FEE = Decimal('5.00')
 LAYER_FEE_BY_TYPE = {
     'text': Decimal('2.00'),
     'image': Decimal('4.00'),
+    # A pocket is cut, hemmed and stitched on rather than printed, so it's
+    # priced as construction rather than as another screen.
+    'pocket': Decimal('6.00'),
 }
 
 
