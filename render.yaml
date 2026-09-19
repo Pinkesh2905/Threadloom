@@ -8,23 +8,23 @@ services:
     # skip-if-exists) — safe to run on every build. The free plan has no Shell
     # access for one-off commands, so this is the only place to run them.
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_catalog && python manage.py ensure_superuser"
-    # --timeout 120: gunicorn's 30s default kills the worker mid-request for
-    # the image-upload pipeline (rembg + k-means + vtracer), which runs
-    # synchronously in-request since there's no Celery worker on this plan
-    # (CELERY_ALWAYS_EAGER=True) and can take longer than 30s on the free
-    # tier's throttled CPU.
+    # The image-upload pipeline runs inline in the request (no Celery worker
+    # on this plan, CELERY_ALWAYS_EAGER=True), so the web process has to
+    # survive doing real image work mid-request:
     #
-    # --workers 1 --worker-class gthread --threads 2: ONE process (so only
-    # one rembg/onnxruntime model ever loads into the 512MB limit) but TWO
-    # threads. Confirmed via Render logs this matters, not just theoretical:
-    # with a plain single sync worker, that worker is fully occupied for the
-    # whole image-processing request and can't answer Render's own health
-    # check in the meantime — Render then decides the instance is unhealthy
-    # and force-restarts it (SIGTERM, no gunicorn timeout involved at all),
-    # killing the request independently of --timeout above. numpy/opencv/
-    # onnxruntime release the GIL during their actual C-level compute, so a
-    # second thread can genuinely serve the health check concurrently rather
-    # than just being blocked behind the first.
+    # --worker-class gthread --threads 2: a single sync worker is fully
+    # occupied for the whole upload and can't answer Render's own health
+    # check meanwhile — Render then declares the instance unhealthy and
+    # force-restarts it (plain SIGTERM, no gunicorn timeout involved),
+    # killing the in-flight request. Confirmed in the Render logs, not
+    # theoretical. A second thread keeps the health check answerable, and
+    # numpy/opencv release the GIL during their C-level compute so it runs
+    # genuinely concurrently rather than queueing.
+    #
+    # --workers 1: one process keeps peak memory inside the 512MB limit.
+    # --timeout 120: headroom over the default 30s. The pipeline is now
+    # sub-second on flat artwork, but GrabCut on a large photo plus vector
+    # tracing is the slow path worth allowing for.
     startCommand: "gunicorn threadloom.wsgi:application --timeout 120 --workers 1 --worker-class gthread --threads 2"
     healthCheckPath: /api/health/
     envVars:

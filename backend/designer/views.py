@@ -106,7 +106,7 @@ class UploadedAssetViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, v
     """Upload artwork and clean it up (background removal) in one step.
 
     In local dev CELERY_TASK_ALWAYS_EAGER=True, so `.delay()` runs the
-    rembg pass synchronously in-process — no Redis/worker required — while
+    cleanup pass synchronously in-process — no Redis/worker required — while
     still going through the same Celery task used in production.
     """
 

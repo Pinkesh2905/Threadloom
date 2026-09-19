@@ -596,7 +596,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
             />
           </div>
           <p className="text-[11px] text-secondary">
-            Uploaded images run through local background removal (rembg), k-means color analysis and
+            Uploaded images run through local background removal (OpenCV), k-means color analysis and
             vector tracing — no third-party AI API involved.
           </p>
         </div>

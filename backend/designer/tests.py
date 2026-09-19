@@ -1,13 +1,61 @@
 from decimal import Decimal
+import numpy as np
+from PIL import Image, ImageDraw
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIRequestFactory
 from rest_framework.request import Request
 from catalog.models import GarmentType, GarmentStyleOption
+from .image_analysis import analyze_artwork_colors, remove_background
 from .pricing import compute_price
 from .throttling import DesignSaveThrottle
 
 User = get_user_model()
+
+
+def _logo_on_white(size=240):
+    """A red ring with a white centre on a white field — the shape of the
+    overwhelmingly common upload: flat artwork on a studio background."""
+    image = Image.new('RGB', (size, size), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.ellipse([size * 0.2, size * 0.2, size * 0.8, size * 0.8], fill=(200, 40, 40))
+    draw.ellipse([size * 0.4, size * 0.4, size * 0.6, size * 0.6], fill='white')
+    return image
+
+
+class BackgroundRemovalTests(TestCase):
+    def test_flat_background_is_cut_but_interior_whites_survive(self):
+        alpha = np.array(remove_background(_logo_on_white()))[:, :, 3]
+        size = alpha.shape[0]
+        self.assertEqual(alpha[2, 2], 0, 'outside background should be transparent')
+        self.assertEqual(alpha[size // 2, int(size * 0.3)], 255, 'the artwork itself should be opaque')
+        # The white centre is enclosed by the ring, so it is part of the
+        # design rather than background — naive "delete white" would eat it.
+        self.assertEqual(alpha[size // 2, size // 2], 255, 'enclosed whites should survive')
+
+    def test_existing_transparency_is_left_alone(self):
+        image = Image.new('RGBA', (60, 60), (0, 0, 0, 0))
+        ImageDraw.Draw(image).rectangle([20, 20, 40, 40], fill=(10, 10, 200, 255))
+        result = np.array(remove_background(image))
+        self.assertEqual(result[30, 30, 3], 255)
+        self.assertEqual(result[2, 2, 3], 0)
+
+    def test_oversized_uploads_are_downscaled(self):
+        result = remove_background(Image.new('RGB', (4000, 3000), 'white'))
+        self.assertLessEqual(max(result.size), 1600)
+
+
+class ArtworkColorTests(TestCase):
+    def test_is_deterministic_for_identical_input(self):
+        art = remove_background(_logo_on_white())
+        self.assertEqual(analyze_artwork_colors(art), analyze_artwork_colors(art))
+
+    def test_flat_two_tone_art_quotes_as_spot_colour(self):
+        _, method = analyze_artwork_colors(remove_background(_logo_on_white()))
+        self.assertIn(method, ('one_color', 'spot_color'))
+
+    def test_empty_artwork_returns_no_colours(self):
+        self.assertEqual(analyze_artwork_colors(Image.new('RGBA', (40, 40), (0, 0, 0, 0))), ([], ''))
 
 
 class PricingTests(TestCase):
