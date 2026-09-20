@@ -7,6 +7,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { StorefrontHeader } from '@/components/StorefrontHeader';
 import { GarmentFigure } from '@/components/designer/GarmentFigure';
+import { formatMoney } from '@/lib/currency';
 import type { GarmentTypeSummary, Department } from '@/types/designer';
 
 const DEPARTMENTS: { key: Department; label: string; blurb: string }[] = [
@@ -124,7 +125,7 @@ function ShopInner() {
                 </div>
                 <h3 className="font-semibold text-ink text-sm leading-tight">{g.name}</h3>
                 <p className="text-[11px] text-secondary mt-0.5">{g.category_label}</p>
-                <p className="text-xs text-ink mt-1 tabular-nums font-semibold">From ${g.base_price}</p>
+                <p className="text-xs text-ink mt-1 tabular-nums font-semibold">From {formatMoney(g.base_price)}</p>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-accent mt-2 group-hover:gap-1.5 transition-[gap]">
                   Design it <ArrowRight className="w-3 h-3" />
                 </span>

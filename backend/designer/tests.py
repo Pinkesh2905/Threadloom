@@ -82,8 +82,8 @@ class PricingTests(TestCase):
             {'zone': 'front', 'type': 'text'},
         ]
         price = compute_price(self.tee, {}, layers)
-        # base 18 + one zone fee (5) + two text-layer fees (2 each) = 27
-        self.assertEqual(price, Decimal('27.00'))
+        # base 18 + one zone fee (150) + two text-layer fees (60 each) = 288
+        self.assertEqual(price, Decimal('288.00'))
 
     def test_two_zones_charged_separately(self):
         layers = [
@@ -91,8 +91,8 @@ class PricingTests(TestCase):
             {'zone': 'back', 'type': 'image'},
         ]
         price = compute_price(self.tee, {}, layers)
-        # base 18 + two zone fees (10) + text fee (2) + image fee (4) = 34
-        self.assertEqual(price, Decimal('34.00'))
+        # base 18 + two zone fees (300) + text fee (60) + image fee (120) = 498
+        self.assertEqual(price, Decimal('498.00'))
 
     def test_unknown_option_is_ignored(self):
         price = compute_price(self.tee, {'fit': 'does-not-exist'}, [])

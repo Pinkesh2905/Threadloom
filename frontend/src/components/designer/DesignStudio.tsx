@@ -14,6 +14,11 @@ import { downloadAuthenticatedFile } from '@/lib/download';
 import { computePrice } from '@/lib/pricing';
 import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
 import { DESIGN_FONTS, FONT_GROUPS } from '@/lib/designFonts';
+import { formatMoney, buildTotals } from '@/lib/currency';
+import { getPrintPolygon, polygonToSvgPoints } from '@/lib/printZones';
+import { validateDesign, isBlocking, maxFontSizeFor, type LayerIssue } from '@/lib/designValidation';
+import { loadDraft, saveDraft, clearDraft } from '@/lib/designDraft';
+import { openRazorpayCheckout } from '@/lib/razorpay';
 import { GarmentFigure, GarmentClipPath } from './GarmentFigure';
 import { GarmentCanvasClient } from './GarmentCanvasClient';
 import { Garment3DPreviewClient } from './Garment3DPreviewClient';
@@ -140,6 +145,9 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
   const [isOrdering, setIsOrdering] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
+  const [boundaryHit, setBoundaryHit] = useState(false);
+  const [blockingIssues, setBlockingIssues] = useState<LayerIssue[]>([]);
+  const [isPaying, setIsPaying] = useState(false);
 
   // Load the garment type, and — if resuming a saved design — its content.
   useEffect(() => {
@@ -164,6 +172,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
           setIsPublic(designRes.data.is_public);
           setDesignId(designRes.data.id);
           setShareToken(designRes.data.share_token);
+          draftRestored.current = true;
         } else {
           const defaults: Record<string, string> = {};
           for (const opt of gtRes.data.style_options) {
@@ -182,6 +191,38 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
       cancelled = true;
     };
   }, [slug, initialDesignId]);
+
+  // Restore an unsaved draft for this garment. Runs after the garment has
+  // loaded so a draft can't be clobbered by the default-options pass.
+  const draftRestored = useRef(false);
+  useEffect(() => {
+    if (!garmentType || draftRestored.current || initialDesignId) return;
+    draftRestored.current = true;
+    const draft = loadDraft(slug);
+    if (!draft || draft.layers.length === 0) return;
+    setDocState({
+      baseColor: draft.baseColor,
+      selectedOptions: draft.selectedOptions,
+      layers: draft.layers,
+    });
+    setDesignName(draft.name);
+    if (draft.designId) setDesignId(draft.designId);
+    historyRef.current = { past: [], future: [] };
+  }, [garmentType, slug, initialDesignId]);
+
+  // Persist every edit locally so a refresh, a crash or a closed tab
+  // doesn't destroy work that was never saved to the server.
+  useEffect(() => {
+    if (!garmentType || !draftRestored.current) return;
+    saveDraft({
+      slug,
+      designId,
+      name: designName,
+      baseColor: doc.baseColor,
+      selectedOptions: doc.selectedOptions,
+      layers: doc.layers,
+    });
+  }, [doc, designName, designId, slug, garmentType]);
 
   const price = useMemo(() => {
     if (!garmentType) return 0;
@@ -380,6 +421,10 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
   };
 
   const placeOrder = async () => {
+    if (!selectedAddressId) {
+      setOrderError('Choose a shipping address first.');
+      return;
+    }
     setIsOrdering(true);
     setOrderError(null);
     try {
@@ -390,25 +435,64 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
         setOrderError('Save your design first.');
         return;
       }
-      await api.post('/orders/', {
+
+      const orderRes = await api.post('/orders/', {
         design: id,
         size: orderSize,
         quantity: orderQuantity,
-        ...(selectedAddressId ? { address_id: selectedAddressId } : {}),
+        address_id: selectedAddressId,
       });
+      const orderId = orderRes.data.id;
+
+      setIsPaying(true);
+      const session = await api.post(`/orders/${orderId}/create-payment/`);
+      const handback = await openRazorpayCheckout(session.data, {
+        name: user?.display_name,
+        email: user?.email,
+      });
+
+      // The server re-checks the signature; a "success" here is only a
+      // prompt to verify, never proof that the order is paid.
+      await api.post(`/orders/${orderId}/verify-payment/`, handback);
+
+      clearDraft(slug);
       setOrderSuccess(true);
-    } catch {
-      setOrderError('Could not place your order. Please try again.');
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        (err instanceof Error ? err.message : null);
+      setOrderError(detail ?? 'Could not place your order. Please try again.');
     } finally {
+      setIsPaying(false);
       setIsOrdering(false);
     }
   };
+
+  const zoneLabels = useMemo(
+    () => Object.fromEntries((garmentType?.print_zones ?? []).map((z) => [z.key, z.label])),
+    [garmentType],
+  );
+
+  const designIssues = useMemo(
+    () => (garmentType ? validateDesign(doc.layers, garmentType.svg_key, doc.baseColor, zoneLabels) : []),
+    [doc.layers, doc.baseColor, garmentType, zoneLabels],
+  );
 
   const openOrderPanel = async () => {
     if (!user) {
       setShowSignUpPrompt(true);
       return;
     }
+    // Refuse to open checkout on a design that can't be printed, and say
+    // exactly which layer and which zone is the problem.
+    const blockers = designIssues.filter(isBlocking);
+    if (blockers.length > 0) {
+      setBlockingIssues(blockers);
+      setSelectedLayerId(blockers[0].layerId);
+      setActiveZoneKey(blockers[0].zone);
+      return;
+    }
+    setBlockingIssues([]);
     setShowOrderPanel(true);
     try {
       const res = await api.get<Address[]>('/auth/addresses/');
@@ -555,9 +639,25 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                 svgKey={garmentType.svg_key}
                 view={garmentView}
                 color={doc.baseColor}
-                printZone={activeZone}
                 className="absolute inset-0 w-full h-full"
               />
+              {/* The printable area, drawn as the real polygon. Lights up
+                  while a drag is being held back by the boundary. */}
+              <svg
+                viewBox={`0 0 ${GARMENT_VIEWBOX.width} ${GARMENT_VIEWBOX.height}`}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                aria-hidden="true"
+              >
+                <polygon
+                  points={polygonToSvgPoints(getPrintPolygon(garmentType.svg_key, garmentView))}
+                  fill={boundaryHit ? 'var(--color-accent)' : 'none'}
+                  fillOpacity={boundaryHit ? 0.08 : 0}
+                  stroke="var(--color-accent)"
+                  strokeWidth={boundaryHit ? 1.6 : 0.8}
+                  strokeDasharray="3 2.5"
+                  opacity={boundaryHit ? 0.95 : 0.4}
+                />
+              </svg>
               {/* The artwork canvas spans the whole garment — placement is
                   free — and is clipped to the silhouette so nothing can be
                   dragged off the fabric. */}
@@ -568,6 +668,9 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                 <GarmentCanvasClient
                   widthPx={DISPLAY_WIDTH}
                   heightPx={DISPLAY_HEIGHT}
+                  svgKey={garmentType.svg_key}
+                  view={garmentView}
+                  onBoundaryPressure={setBoundaryHit}
                   layers={zoneLayers}
                   selectedLayerId={selectedLayerId}
                   onSelect={setSelectedLayerId}
@@ -748,18 +851,45 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                   />
                 </label>
 
-                <label className="flex items-center gap-1.5 text-[11px] text-secondary">
-                  Size
-                  <input
-                    type="range"
-                    min={4}
-                    max={40}
-                    step={1}
-                    value={selectedLayer.fontSize ?? 11}
-                    onChange={(e) => updateLayer(selectedLayer.id, { fontSize: Number(e.target.value) }, false)}
-                    className="w-20 accent-[var(--color-accent)]"
-                  />
-                </label>
+                {(() => {
+                  // The press can only reach so far at this layer's height,
+                  // so the slider stops where the print area does rather
+                  // than letting text run off the garment.
+                  const maxSize = maxFontSizeFor(
+                    selectedLayer,
+                    getPrintPolygon(garmentType.svg_key, garmentView),
+                  );
+                  const current = selectedLayer.fontSize ?? 11;
+                  return (
+                    <>
+                      <label className="flex items-center gap-1.5 text-[11px] text-secondary">
+                        Size
+                        <input
+                          type="range"
+                          min={4}
+                          max={Math.max(6, maxSize)}
+                          step={1}
+                          value={Math.min(current, Math.max(6, maxSize))}
+                          onChange={(e) =>
+                            updateLayer(selectedLayer.id, { fontSize: Number(e.target.value) }, false)
+                          }
+                          className="w-20 accent-[var(--color-accent)]"
+                        />
+                      </label>
+                      {current > maxSize && (
+                        <span className="w-full flex items-center gap-2 text-[11px] text-red-600">
+                          Too wide for this print area — shorten the text or reduce the size.
+                          <button
+                            onClick={() => updateLayer(selectedLayer.id, { fontSize: maxSize })}
+                            className="underline font-semibold"
+                          >
+                            Shrink to fit
+                          </button>
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
                 <button
                   onClick={() => downloadEmbroidery(selectedLayer)}
                   disabled={isDigitizing || !selectedLayer.text?.trim()}
@@ -859,7 +989,9 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                     }`}
                   >
                     {opt.label}
-                    {parseFloat(opt.price_delta) > 0 && <span className="opacity-70"> +${opt.price_delta}</span>}
+                    {parseFloat(opt.price_delta) > 0 && (
+                      <span className="opacity-70"> +{formatMoney(opt.price_delta)}</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -895,7 +1027,7 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
         <div className="editorial-card rounded-2xl p-sp-3 space-y-sp-2">
           <div className="flex items-baseline justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-secondary">Price</span>
-            <span className="text-2xl font-bold text-ink tabular-nums">${price.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-ink tabular-nums">{formatMoney(price)}</span>
           </div>
           <p className="text-[11px] text-secondary leading-relaxed">
             Base price + style options + a setup fee per print zone used + a fee per layer — a fixed
@@ -922,6 +1054,30 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
           </button>
         </div>
       </div>
+
+      {/* Checkout is refused while anything is unprintable, naming the
+          layer and zone so it can actually be fixed. */}
+      {blockingIssues.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-sp-4 space-y-sp-3">
+            <h3 className="font-serif text-xl text-ink">This design can&apos;t be printed yet.</h3>
+            <ul className="space-y-2">
+              {blockingIssues.map((issue) => (
+                <li key={`${issue.layerId}-${issue.kind}`} className="text-xs text-secondary flex gap-2">
+                  <span className="text-red-600 mt-0.5">&bull;</span>
+                  <span>{issue.message}</span>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => setBlockingIssues([])}
+              className="w-full py-2.5 rounded-full bg-ink hover:bg-black active:bg-black text-white text-xs font-semibold uppercase tracking-wider"
+            >
+              Fix it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Guests can design the whole thing; the account only gates keeping it. */}
       {showSignUpPrompt && (
@@ -1029,13 +1185,11 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                   </div>
                   {addresses.length === 0 ? (
                     <p className="text-xs text-secondary">
-                      No saved addresses.{' '}
+                      A shipping address is required — this is made to order and posted to you.{' '}
                       <Link href="/account/addresses" target="_blank" rel="noopener noreferrer" className="text-accent font-semibold">
                         Add one
                       </Link>{' '}
-                      (opens in a new tab — your order stays open here; use the refresh
-                      icon above once you've saved it), or place this order without
-                      shipping details.
+                      (opens in a new tab; your order stays open here), then use the refresh icon above.
                     </p>
                   ) : (
                     <div className="space-y-1.5 max-h-32 overflow-y-auto">
@@ -1064,10 +1218,31 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                     </div>
                   )}
                 </div>
-                <div className="flex items-baseline justify-between pt-sp-1 border-t border-hairline">
-                  <span className="text-xs text-secondary">Total</span>
-                  <span className="text-xl font-bold text-ink tabular-nums">${(price * orderQuantity).toFixed(2)}</span>
-                </div>
+                {(() => {
+                  const totals = buildTotals(price, orderQuantity);
+                  return (
+                    <div className="pt-sp-1 border-t border-hairline space-y-1">
+                      <div className="flex items-baseline justify-between text-xs text-secondary">
+                        <span>Subtotal</span>
+                        <span className="tabular-nums">{formatMoney(totals.subtotal)}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between text-xs text-secondary">
+                        <span>GST ({Math.round(totals.gstRate * 100)}%)</span>
+                        <span className="tabular-nums">{formatMoney(totals.gstAmount)}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between text-xs text-secondary">
+                        <span>Shipping</span>
+                        <span className="tabular-nums">
+                          {totals.shippingAmount === 0 ? 'Free' : formatMoney(totals.shippingAmount)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between pt-1 border-t border-hairline">
+                        <span className="text-xs font-semibold text-ink">Total</span>
+                        <span className="text-xl font-bold text-ink tabular-nums">{formatMoney(totals.total)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {orderError && <p className="text-xs text-red-600">{orderError}</p>}
                 <div className="flex gap-2 pt-sp-1">
                   <button
@@ -1078,10 +1253,18 @@ export const DesignStudio: React.FC<{ slug: string; initialDesignId?: number }> 
                   </button>
                   <button
                     onClick={placeOrder}
-                    disabled={isOrdering}
-                    className="flex-1 py-2.5 rounded-full bg-ink hover:bg-black active:bg-black active:scale-[0.98] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
+                    disabled={isOrdering || !selectedAddressId}
+                    title={selectedAddressId ? undefined : 'Choose a shipping address first'}
+                    className="flex-1 py-2.5 rounded-full bg-ink hover:bg-black active:bg-black active:scale-[0.98] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {isOrdering ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Place Order'}
+                    {isOrdering ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {isPaying ? 'Waiting for payment' : 'Preparing'}
+                      </>
+                    ) : (
+                      'Pay & Place Order'
+                    )}
                   </button>
                 </div>
               </>

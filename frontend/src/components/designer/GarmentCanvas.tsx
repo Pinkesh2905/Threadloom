@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer as KonvaLayer, Text, TextPath, Image as KonvaImage, Path, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
 import { ensureDesignFontsLoaded, getDesignFont } from '@/lib/designFonts';
+import { getPrintPolygon, rectFitsInPolygon, type Polygon } from '@/lib/printZones';
 import type { DesignLayer } from '@/types/designer';
 import { useHtmlImage } from './useHtmlImage';
 
@@ -12,6 +13,12 @@ interface GarmentCanvasProps {
   /** Canvas size in px; the garment viewBox is mapped onto this. */
   widthPx: number;
   heightPx: number;
+  /** Which garment/face, so the printable polygon can be looked up. */
+  svgKey?: string;
+  view?: 'front' | 'back';
+  /** Fires while a layer is being dragged near the boundary, so the studio
+   *  can highlight the print area. */
+  onBoundaryPressure?: (active: boolean) => void;
   layers: DesignLayer[];
   selectedLayerId: string | null;
   onSelect: (id: string | null) => void;
@@ -36,7 +43,8 @@ const ImageLayerNode: React.FC<{
   onSelect: () => void;
   onChange: (partial: Partial<DesignLayer>) => void;
   shapeRef: (node: Konva.Node | null) => void;
-}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef }) => {
+  dragBoundFunc: (this: Konva.Node, pos: { x: number; y: number }) => { x: number; y: number };
+}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef, dragBoundFunc }) => {
   const src = layer.useVector && layer.vectorUrl ? layer.vectorUrl : layer.imageUrl;
   const img = useHtmlImage(src);
   const aspect = img ? img.width / img.height : 1;
@@ -58,6 +66,7 @@ const ImageLayerNode: React.FC<{
       offsetY={height / 2}
       rotation={layer.rotation}
       draggable
+      dragBoundFunc={dragBoundFunc}
       onClick={onSelect}
       onTap={onSelect}
       onDragEnd={(e) => {
@@ -91,7 +100,8 @@ const TextLayerNode: React.FC<{
   onSelect: () => void;
   onChange: (partial: Partial<DesignLayer>) => void;
   shapeRef: (node: Konva.Node | null) => void;
-}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef }) => {
+  dragBoundFunc: (this: Konva.Node, pos: { x: number; y: number }) => { x: number; y: number };
+}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef, dragBoundFunc }) => {
   const font = getDesignFont(layer.fontFamily);
   const fontSize = (layer.fontSize ?? 11) * layer.scale * scale;
   const x = (layer.x / 100) * GARMENT_VIEWBOX.width * scale;
@@ -103,6 +113,7 @@ const TextLayerNode: React.FC<{
     y,
     rotation: layer.rotation,
     draggable: true,
+    dragBoundFunc,
     onClick: onSelect,
     onTap: onSelect,
     fill: layer.color || '#141414',
@@ -171,7 +182,8 @@ const PocketLayerNode: React.FC<{
   onSelect: () => void;
   onChange: (partial: Partial<DesignLayer>) => void;
   shapeRef: (node: Konva.Node | null) => void;
-}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef }) => {
+  dragBoundFunc: (this: Konva.Node, pos: { x: number; y: number }) => { x: number; y: number };
+}> = ({ layer, scale, isSelected, onSelect, onChange, shapeRef, dragBoundFunc }) => {
   const data = POCKET_PATHS[layer.pocketStyle ?? 'patch'] ?? POCKET_PATHS.patch;
   const size = scale * layer.scale * 0.5;
 
@@ -219,11 +231,14 @@ const PocketLayerNode: React.FC<{
 export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
   widthPx,
   heightPx,
+  svgKey = 'tee',
+  view = 'front',
   layers,
   selectedLayerId,
   onSelect,
   onChangeLayer,
   onExport,
+  onBoundaryPressure,
 }) => {
   const transformerRef = useRef<Konva.Transformer>(null);
   const nodeRefs = useRef<Record<string, Konva.Node>>({});
@@ -235,6 +250,49 @@ export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
 
   // px per garment viewBox unit.
   const scale = widthPx / GARMENT_VIEWBOX.width;
+
+  // The printable area, in canvas pixels.
+  const polygonPx: Polygon = useMemo(
+    () => getPrintPolygon(svgKey, view).map(([x, y]) => [x * scale, y * scale] as [number, number]),
+    [svgKey, view, scale],
+  );
+  const pressureRef = useRef(false);
+
+  const signalPressure = useCallback(
+    (blocked: boolean) => {
+      if (pressureRef.current !== blocked) {
+        pressureRef.current = blocked;
+        onBoundaryPressure?.(blocked);
+      }
+    },
+    [onBoundaryPressure],
+  );
+
+  /**
+   * Konva hands us the position a drag *wants* to land on and lets us
+   * return a different one, which is what actually pins the layer — an
+   * out-of-bounds move is refused outright rather than accepted and warned
+   * about after the fact. Konva binds `this` to the node being dragged.
+   */
+  const dragBoundFunc = useCallback(
+    function (this: Konva.Node, pos: { x: number; y: number }) {
+      const box = this.getClientRect({ skipShadow: true, skipStroke: true });
+      const current = this.absolutePosition();
+      const candidate = {
+        x: box.x + (pos.x - current.x),
+        y: box.y + (pos.y - current.y),
+        width: box.width,
+        height: box.height,
+      };
+      if (rectFitsInPolygon(candidate, polygonPx)) {
+        signalPressure(false);
+        return pos;
+      }
+      signalPressure(true);
+      return current; // hold at the last position that fitted
+    },
+    [polygonPx, signalPressure],
+  );
 
   // Canvas text bakes in whatever face is loaded at draw time, so redraw
   // once the design fonts actually arrive.
@@ -293,6 +351,7 @@ export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
             shapeRef: (node: Konva.Node | null) => {
               if (node) nodeRefs.current[layer.id] = node;
             },
+            dragBoundFunc,
           };
           if (layer.type === 'image') return <ImageLayerNode key={layer.id} {...common} />;
           if (layer.type === 'pocket') return <PocketLayerNode key={layer.id} {...common} />;
@@ -300,6 +359,14 @@ export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
         })}
         <Transformer
           ref={transformerRef}
+          boundBoxFunc={(oldBox, newBox) =>
+            rectFitsInPolygon(
+              { x: newBox.x, y: newBox.y, width: newBox.width, height: newBox.height, rotation: newBox.rotation * (180 / Math.PI) },
+              polygonPx,
+            )
+              ? newBox
+              : oldBox
+          }
           rotateEnabled
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
           borderStroke="var(--color-accent)"

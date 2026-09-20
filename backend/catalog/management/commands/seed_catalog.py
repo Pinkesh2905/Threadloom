@@ -7,53 +7,53 @@ CAT = GarmentType.Category
 
 # svg_key, slug, name, department, category, base price, description
 GARMENTS = [
-    ('tee', 'classic-tee', 'Classic Tee', DEPT.UNISEX, CAT.TEES, 18.00,
+    ('tee', 'classic-tee', 'Classic Tee', DEPT.UNISEX, CAT.TEES, 699.00,
      'A regular-fit crew-neck tee — the everyday canvas.'),
-    ('womens-tee', 'womens-tee', "Women's Tee", DEPT.WOMEN, CAT.TEES, 18.00,
+    ('womens-tee', 'womens-tee', "Women's Tee", DEPT.WOMEN, CAT.TEES, 699.00,
      'Scoop neck with a shaped waist and a softly curved hem.'),
-    ('tank', 'tank-top', 'Tank Top', DEPT.UNISEX, CAT.TEES, 15.00,
+    ('tank', 'tank-top', 'Tank Top', DEPT.UNISEX, CAT.TEES, 549.00,
      'Sleeveless, wide armholes — warm-weather printing.'),
-    ('crop-top', 'crop-top', 'Crop Top', DEPT.WOMEN, CAT.TEES, 17.00,
+    ('crop-top', 'crop-top', 'Crop Top', DEPT.WOMEN, CAT.TEES, 649.00,
      'Cropped at the waist with a straight hem.'),
-    ('polo', 'polo-shirt', 'Polo Shirt', DEPT.UNISEX, CAT.SHIRTS, 26.00,
+    ('polo', 'polo-shirt', 'Polo Shirt', DEPT.UNISEX, CAT.SHIRTS, 999.00,
      'Ribbed collar and a three-button placket. Takes embroidery well.'),
-    ('shirt', 'formal-shirt', 'Formal Shirt', DEPT.UNISEX, CAT.SHIRTS, 32.00,
+    ('shirt', 'formal-shirt', 'Formal Shirt', DEPT.UNISEX, CAT.SHIRTS, 1299.00,
      'Full-placket button-through shirt with a curved shirttail hem.'),
-    ('sweatshirt', 'sweatshirt', 'Sweatshirt', DEPT.UNISEX, CAT.SWEATS, 30.00,
+    ('sweatshirt', 'sweatshirt', 'Sweatshirt', DEPT.UNISEX, CAT.SWEATS, 1199.00,
      'Midweight crew-neck with ribbed cuffs and hem.'),
-    ('hoodie', 'pullover-hoodie', 'Pullover Hoodie', DEPT.UNISEX, CAT.SWEATS, 34.00,
+    ('hoodie', 'pullover-hoodie', 'Pullover Hoodie', DEPT.UNISEX, CAT.SWEATS, 1399.00,
      'Midweight pullover hoodie with a kangaroo pocket and drawstrings.'),
-    ('womens-hoodie', 'womens-hoodie', "Women's Hoodie", DEPT.WOMEN, CAT.SWEATS, 34.00,
+    ('womens-hoodie', 'womens-hoodie', "Women's Hoodie", DEPT.WOMEN, CAT.SWEATS, 1399.00,
      'Fitted pullover hoodie with a shaped waist.'),
-    ('bomber', 'bomber-jacket', 'Bomber Jacket', DEPT.UNISEX, CAT.OUTERWEAR, 58.00,
+    ('bomber', 'bomber-jacket', 'Bomber Jacket', DEPT.UNISEX, CAT.OUTERWEAR, 2499.00,
      'Full-zip bomber with a mandarin collar and ribbed trims.'),
 
     # ---- Indian & ethnic wear ----
-    ('kurta', 'mens-kurta', "Men's Kurta", DEPT.MEN, CAT.ETHNIC, 38.00,
+    ('kurta', 'mens-kurta', "Men's Kurta", DEPT.MEN, CAT.ETHNIC, 1499.00,
      'Straight-cut kurta with a mandarin collar, side slits and a short placket.'),
-    ('kurti', 'kurti', 'Kurti', DEPT.WOMEN, CAT.ETHNIC, 34.00,
+    ('kurti', 'kurti', 'Kurti', DEPT.WOMEN, CAT.ETHNIC, 1299.00,
      'A-line kurti with a V neck, three-quarter sleeves and side slits.'),
-    ('anarkali', 'anarkali', 'Anarkali', DEPT.WOMEN, CAT.ETHNIC, 52.00,
+    ('anarkali', 'anarkali', 'Anarkali', DEPT.WOMEN, CAT.ETHNIC, 2499.00,
      'Fitted bodice falling into a full flared sweep.'),
-    ('salwar-kameez', 'salwar-kameez', 'Salwar Kameez', DEPT.WOMEN, CAT.ETHNIC, 46.00,
+    ('salwar-kameez', 'salwar-kameez', 'Salwar Kameez', DEPT.WOMEN, CAT.ETHNIC, 2199.00,
      'Long kameez with a mandarin neckline and deep side slits.'),
-    ('saree-blouse', 'saree-blouse', 'Saree Blouse', DEPT.WOMEN, CAT.ETHNIC, 24.00,
+    ('saree-blouse', 'saree-blouse', 'Saree Blouse', DEPT.WOMEN, CAT.ETHNIC, 899.00,
      'Cropped fitted blouse with cap sleeves.'),
-    ('sherwani', 'sherwani', 'Sherwani', DEPT.MEN, CAT.ETHNIC, 96.00,
+    ('sherwani', 'sherwani', 'Sherwani', DEPT.MEN, CAT.ETHNIC, 6999.00,
      'Full-length ceremonial sherwani with a buttoned placket.'),
-    ('nehru-jacket', 'nehru-jacket', 'Nehru Jacket', DEPT.MEN, CAT.ETHNIC, 48.00,
+    ('nehru-jacket', 'nehru-jacket', 'Nehru Jacket', DEPT.MEN, CAT.ETHNIC, 1999.00,
      'Sleeveless mandarin-collar jacket worn over a kurta.'),
-    ('lehenga', 'lehenga', 'Lehenga', DEPT.WOMEN, CAT.ETHNIC, 88.00,
+    ('lehenga', 'lehenga', 'Lehenga', DEPT.WOMEN, CAT.ETHNIC, 5999.00,
      'Floor-length flared skirt with a gathered waistband.'),
-    ('dupatta', 'dupatta', 'Dupatta', DEPT.WOMEN, CAT.ETHNIC, 22.00,
+    ('dupatta', 'dupatta', 'Dupatta', DEPT.WOMEN, CAT.ETHNIC, 699.00,
      'A long draped stole — a wide, uninterrupted print surface.'),
 
     # ---- dresses & accessories ----
-    ('dress', 'a-line-dress', 'A-Line Dress', DEPT.WOMEN, CAT.DRESSES, 44.00,
+    ('dress', 'a-line-dress', 'A-Line Dress', DEPT.WOMEN, CAT.DRESSES, 1699.00,
      'Scoop neck falling into a clean A-line skirt.'),
-    ('tote', 'tote-bag', 'Tote Bag', DEPT.UNISEX, CAT.ACCESSORIES, 14.00,
+    ('tote', 'tote-bag', 'Tote Bag', DEPT.UNISEX, CAT.ACCESSORIES, 449.00,
      'Heavy cotton tote — a big flat panel, the easiest thing to print.'),
-    ('cap', 'cap', 'Cap', DEPT.UNISEX, CAT.ACCESSORIES, 16.00,
+    ('cap', 'cap', 'Cap', DEPT.UNISEX, CAT.ACCESSORIES, 499.00,
      'Six-panel cap. Front panel suits embroidery more than print.'),
 ]
 
@@ -90,16 +90,16 @@ ZONES = {
 # (category, category_label, key, label, price delta, is_default).
 COMMON_FIT = [
     ('fit', 'Fit', 'regular', 'Regular', 0, True),
-    ('fit', 'Fit', 'slim', 'Slim', 2, False),
-    ('fit', 'Fit', 'oversized', 'Oversized', 3, False),
+    ('fit', 'Fit', 'slim', 'Slim', 150, False),
+    ('fit', 'Fit', 'oversized', 'Oversized', 250, False),
 ]
 SLEEVE_SHORT_LONG = [
     ('sleeve', 'Sleeve Length', 'short', 'Short Sleeve', 0, True),
-    ('sleeve', 'Sleeve Length', 'long', 'Long Sleeve', 4, False),
+    ('sleeve', 'Sleeve Length', 'long', 'Long Sleeve', 300, False),
 ]
 ETHNIC_LENGTH = [
     ('length', 'Length', 'regular', 'Regular', 0, True),
-    ('length', 'Length', 'ankle', 'Ankle Length', 5, False),
+    ('length', 'Length', 'ankle', 'Ankle Length', 400, False),
 ]
 NECK_ETHNIC = [
     ('neckline', 'Neckline', 'mandarin', 'Mandarin', 0, True),
@@ -108,8 +108,8 @@ NECK_ETHNIC = [
 ]
 FABRIC_ETHNIC = [
     ('fabric', 'Fabric', 'cotton', 'Cotton', 0, True),
-    ('fabric', 'Fabric', 'silk-blend', 'Silk Blend', 12, False),
-    ('fabric', 'Fabric', 'linen', 'Linen', 8, False),
+    ('fabric', 'Fabric', 'silk-blend', 'Silk Blend', 900, False),
+    ('fabric', 'Fabric', 'linen', 'Linen', 600, False),
 ]
 
 STYLE_OPTIONS = {
@@ -120,7 +120,7 @@ STYLE_OPTIONS = {
     'polo': COMMON_FIT,
     'shirt': COMMON_FIT + [
         ('cuff', 'Cuff', 'button', 'Button Cuff', 0, True),
-        ('cuff', 'Cuff', 'french', 'French Cuff', 6, False),
+        ('cuff', 'Cuff', 'french', 'French Cuff', 500, False),
     ],
     'sweatshirt': COMMON_FIT,
     'hoodie': COMMON_FIT + [
@@ -135,7 +135,7 @@ STYLE_OPTIONS = {
     'salwar-kameez': ETHNIC_LENGTH + FABRIC_ETHNIC,
     'saree-blouse': [
         ('sleeve', 'Sleeve Length', 'cap', 'Cap Sleeve', 0, True),
-        ('sleeve', 'Sleeve Length', 'elbow', 'Elbow Sleeve', 3, False),
+        ('sleeve', 'Sleeve Length', 'elbow', 'Elbow Sleeve', 250, False),
     ] + FABRIC_ETHNIC,
     'sherwani': FABRIC_ETHNIC,
     'nehru-jacket': FABRIC_ETHNIC,
@@ -144,7 +144,7 @@ STYLE_OPTIONS = {
     'dress': COMMON_FIT,
     'tote': [
         ('size', 'Size', 'standard', 'Standard', 0, True),
-        ('size', 'Size', 'large', 'Large', 4, False),
+        ('size', 'Size', 'large', 'Large', 300, False),
     ],
     'cap': [
         ('closure', 'Closure', 'snapback', 'Snapback', 0, True),

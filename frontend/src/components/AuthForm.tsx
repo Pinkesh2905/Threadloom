@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, User as UserIcon, Loader2, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
@@ -14,6 +14,7 @@ interface AuthFormProps {
 
 export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setAuth } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -55,7 +56,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
         setAuth(profileRes.data, access, refresh);
       }
 
-      router.push('/studio');
+      // Honour ?next= so bookmarks, refreshes and shared links land where
+      // the person was actually trying to go.
+      const next = searchParams.get('next');
+      router.push(next && next.startsWith('/') ? next : '/studio');
     } catch (err: any) {
       if (err.response?.data) {
         const data = err.response.data;

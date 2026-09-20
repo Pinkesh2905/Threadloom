@@ -223,3 +223,10 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
+
+# Razorpay. Absent keys disable checkout but leave the rest of the app
+# working (local dev, CI, browsing the catalogue) — see orders.payments.
+RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
+RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
+# Razorpay signs webhooks with a secret that is *separate* from the API key.
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default='')

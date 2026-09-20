@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/Navbar';
 import { GarmentFigure } from '@/components/designer/GarmentFigure';
+import { formatMoney } from '@/lib/currency';
 import type { Design } from '@/types/designer';
 
 export default function StudioPage() {
@@ -86,7 +87,7 @@ export default function StudioPage() {
                 <p className="text-sm font-semibold text-ink truncate">
                   {design.name || `Design #${design.id}`}
                 </p>
-                <p className="text-xs text-secondary mt-0.5 tabular-nums">${design.price}</p>
+                <p className="text-xs text-secondary mt-0.5 tabular-nums">{formatMoney(design.price)}</p>
               </Link>
             ))}
           </div>

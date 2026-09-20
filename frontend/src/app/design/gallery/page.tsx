@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/Navbar';
 import { GarmentFigure } from '@/components/designer/GarmentFigure';
+import { formatMoney } from '@/lib/currency';
 import type { Design } from '@/types/designer';
 
 export default function TemplateGalleryPage() {
@@ -73,7 +74,7 @@ export default function TemplateGalleryPage() {
                 </div>
                 <p className="text-sm font-semibold text-ink truncate">{template.name || 'Untitled Design'}</p>
                 <p className="text-xs text-secondary mt-0.5">
-                  by {template.author_name} &middot; <span className="tabular-nums">${template.price}</span>
+                  by {template.author_name} &middot; <span className="tabular-nums">{formatMoney(template.price)}</span>
                 </p>
                 <button
                   onClick={() => useTemplate(template)}

@@ -1,16 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Package, Loader2, FileDown, RotateCcw, Check } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { downloadAuthenticatedFile } from '@/lib/download';
+import { formatMoney } from '@/lib/currency';
 import { Navbar } from '@/components/Navbar';
+import { RequireAuth } from '@/components/RequireAuth';
 import type { Order, Address } from '@/types/designer';
 
 const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending',
+  pending_payment: 'Awaiting Payment',
+  payment_failed: 'Payment Failed',
+  confirmed: 'Confirmed',
   in_production: 'In Production',
   shipped: 'Shipped',
   delivered: 'Delivered',
@@ -18,19 +21,12 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function OrdersPage() {
-  const router = useRouter();
-  const { user, isInitialized } = useAuthStore();
+  const { user } = useAuthStore();
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [reorderingId, setReorderingId] = useState<number | null>(null);
   const [reorderedId, setReorderedId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isInitialized && !user) {
-      router.replace('/login');
-    }
-  }, [isInitialized, user, router]);
 
   const loadOrders = () => {
     api.get<Order[]>('/orders/').then((res) => setOrders(res.data));
@@ -71,13 +67,10 @@ export default function OrdersPage() {
     }
   };
 
-  if (!isInitialized || !user) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-bg font-sans">
       <Navbar />
+      <RequireAuth>
       <main className="max-w-3xl mx-auto px-sp-3 sm:px-sp-4 py-sp-5 pb-24 md:pb-sp-6">
         <h1 className="font-serif text-3xl sm:text-4xl text-ink mb-sp-4">Your Orders</h1>
 
@@ -132,7 +125,7 @@ export default function OrdersPage() {
                     Tech Pack
                   </button>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-ink tabular-nums">${order.total_price}</p>
+                    <p className="text-sm font-bold text-ink tabular-nums">{formatMoney(order.total_price)}</p>
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-accent">
                       {STATUS_LABEL[order.status] ?? order.status}
                     </span>
@@ -143,6 +136,7 @@ export default function OrdersPage() {
           </div>
         )}
       </main>
+      </RequireAuth>
     </div>
   );
 }

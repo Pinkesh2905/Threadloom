@@ -5,13 +5,13 @@ import type { GarmentTypeDetail, DesignLayer } from '@/types/designer';
  * order) so the studio shows an accurate live price before saving — the
  * server always recomputes and is the source of truth.
  */
-const ZONE_SETUP_FEE = 5.0;
+const ZONE_SETUP_FEE = 150.0;
 const LAYER_FEE_BY_TYPE: Record<string, number> = {
-  text: 2.0,
-  image: 4.0,
+  text: 60.0,
+  image: 120.0,
   // A pocket is cut, hemmed and stitched on rather than printed, so it's
   // priced as construction rather than as another screen.
-  pocket: 6.0,
+  pocket: 180.0,
 };
 
 export function computePrice(

@@ -9,6 +9,7 @@ import { ThreadloomLogo } from '@/components/ThreadloomLogo';
 import { GarmentFigure, GarmentClipPath } from '@/components/designer/GarmentFigure';
 import { GarmentCanvasClient } from '@/components/designer/GarmentCanvasClient';
 import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
+import { formatMoney } from '@/lib/currency';
 import type { PublicDesign, GarmentTypeDetail } from '@/types/designer';
 
 const DISPLAY_WIDTH = 360;
@@ -134,7 +135,7 @@ export default function SharedDesignPage() {
         <div className="editorial-card rounded-2xl p-sp-3 flex items-center justify-between">
           <div>
             <p className="text-xs text-secondary">Price</p>
-            <p className="text-xl font-bold text-ink tabular-nums">${design.price}</p>
+            <p className="text-xl font-bold text-ink tabular-nums">{formatMoney(design.price)}</p>
           </div>
           <Link
             href="/register"

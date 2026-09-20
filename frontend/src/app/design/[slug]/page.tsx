@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { Navbar } from '@/components/Navbar';
 import { StorefrontHeader } from '@/components/StorefrontHeader';
+import { DesignErrorBoundary } from '@/components/DesignErrorBoundary';
 import { DesignStudio } from '@/components/designer/DesignStudio';
 
 function DesignStudioInner() {
@@ -33,7 +34,9 @@ function DesignStudioInner() {
   return (
     <div className="min-h-screen bg-bg font-sans">
       {user ? <Navbar /> : <StorefrontHeader />}
-      <DesignStudio slug={params.slug} initialDesignId={initialDesignId} />
+      <DesignErrorBoundary>
+        <DesignStudio slug={params.slug} initialDesignId={initialDesignId} />
+      </DesignErrorBoundary>
     </div>
   );
 }

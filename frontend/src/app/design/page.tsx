@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/Navbar';
 import { GarmentFigure } from '@/components/designer/GarmentFigure';
+import { formatMoney } from '@/lib/currency';
 import type { GarmentTypeSummary } from '@/types/designer';
 
 export default function GarmentPickerPage() {
@@ -49,7 +50,7 @@ export default function GarmentPickerPage() {
                 <GarmentFigure svgKey={gt.svg_key} view="front" color="#FFFFFF" className="w-full h-40" />
               </div>
               <h3 className="font-semibold text-ink text-sm">{gt.name}</h3>
-              <p className="text-xs text-secondary mt-0.5">From ${gt.base_price}</p>
+              <p className="text-xs text-secondary mt-0.5">From {formatMoney(gt.base_price)}</p>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-accent mt-2 group-hover:gap-1.5 transition-[gap] duration-200">
                 Start Designing <ArrowRight className="w-3 h-3" />
               </span>

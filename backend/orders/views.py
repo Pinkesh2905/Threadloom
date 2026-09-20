@@ -1,9 +1,14 @@
+import json
+import logging
+
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.http import HttpResponse, FileResponse
+from django.views.decorators.csrf import csrf_exempt
 from .models import Order
 from .serializers import OrderSerializer
+from . import payments
 from production.models import TechPackArtifact, OrderStatusChange
 from production.tasks import generate_tech_pack_task
 from production.fabric import estimate_fabric_yield
@@ -15,9 +20,13 @@ class IsOwnerOrStaff(permissions.BasePermission):
         return request.user.is_staff or obj.user_id == request.user.id
 
 
+logger = logging.getLogger(__name__)
+
+
 class OrderViewSet(viewsets.ModelViewSet):
     """Create and view your own orders (staff can see and manage all of
-    them). No payment processing yet — that's Phase 5's Stripe checkout."""
+    them). Orders are created unpaid and only reach production once a
+    Razorpay payment is verified server-side — see orders.payments."""
 
     serializer_class = OrderSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -43,9 +52,18 @@ class OrderViewSet(viewsets.ModelViewSet):
     def set_status(self, request, pk=None):
         order = self.get_object()
         new_status = request.data.get('status')
-        valid_statuses = dict(Order.Status.choices)
-        if new_status not in valid_statuses:
-            return Response({'detail': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Staff move orders through fulfilment; they cannot hand-wave an
+        # order into a paid state, which only a verified payment can do.
+        if new_status not in Order.STAFF_SETTABLE_STATUSES:
+            return Response(
+                {'detail': 'That status cannot be set by hand. Payment states are set by the payment gateway.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not order.is_paid and new_status != Order.Status.CANCELLED:
+            return Response(
+                {'detail': 'This order has not been paid for yet.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         old_status = order.status
         if new_status != old_status:
             order.status = new_status
@@ -98,3 +116,107 @@ class OrderViewSet(viewsets.ModelViewSet):
         base_url = request.build_absolute_uri('/').rstrip('/')
         png_bytes = generate_order_qr_png(order.id, base_url)
         return HttpResponse(png_bytes, content_type='image/png')
+
+    @action(detail=True, methods=['post'], url_path='create-payment')
+    def create_payment(self, request, pk=None):
+        """Register this order with Razorpay and hand the browser what it
+        needs to open checkout. The amount comes from the stored order, not
+        from the request."""
+        order = self.get_object()
+
+        if order.user_id != request.user.id:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if order.is_paid:
+            return Response({'detail': 'This order is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not order.has_shipping_address:
+            return Response(
+                {'detail': 'This order has no shipping address.'}, status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            if not order.razorpay_order_id:
+                order.razorpay_order_id = payments.create_gateway_order(order)
+                order.save(update_fields=['razorpay_order_id'])
+        except payments.PaymentNotConfigured as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception:
+            logger.exception('Razorpay order creation failed for order %s', order.pk)
+            return Response(
+                {'detail': 'Could not reach the payment provider. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        from django.conf import settings as dj_settings
+        from threadloom.money import to_minor_units, CURRENCY_CODE
+
+        return Response({
+            'razorpay_order_id': order.razorpay_order_id,
+            'razorpay_key_id': dj_settings.RAZORPAY_KEY_ID,
+            'amount': to_minor_units(order.total_price),
+            'currency': CURRENCY_CODE,
+            'order_id': order.pk,
+        })
+
+    @action(detail=True, methods=['post'], url_path='verify-payment')
+    def verify_payment(self, request, pk=None):
+        """Checkout handback. Treated as a prompt to verify, never as proof
+        of payment — the signature is what decides."""
+        order = self.get_object()
+        if order.user_id != request.user.id:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        payment_id = request.data.get('razorpay_payment_id', '')
+        signature = request.data.get('razorpay_signature', '')
+        gateway_order_id = request.data.get('razorpay_order_id', '')
+
+        if gateway_order_id != order.razorpay_order_id:
+            return Response({'detail': 'Payment does not match this order.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not payments.verify_checkout_signature(gateway_order_id, payment_id, signature):
+            payments.mark_failed(order, 'signature mismatch on checkout handback')
+            return Response({'detail': 'Payment could not be verified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payments.mark_paid(order, payment_id, signature)
+        return Response(self.get_serializer(order).data)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def razorpay_webhook(request):
+    """Authoritative payment confirmation.
+
+    Unauthenticated by design — Razorpay calls it — so the HMAC over the raw
+    body is the only thing that makes it trustworthy. This is what confirms
+    an order when the customer closes the tab before the handback fires.
+    """
+    signature = request.META.get('HTTP_X_RAZORPAY_SIGNATURE', '')
+    if not payments.verify_webhook_signature(request.body, signature):
+        logger.warning('Rejected Razorpay webhook with a bad signature')
+        return Response({'detail': 'Invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        event = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return Response({'detail': 'Malformed payload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    event_type = event.get('event', '')
+    entity = (
+        event.get('payload', {}).get('payment', {}).get('entity', {})
+        or event.get('payload', {}).get('order', {}).get('entity', {})
+    )
+    gateway_order_id = entity.get('order_id') or entity.get('id')
+    if not gateway_order_id:
+        return Response({'detail': 'ok'})
+
+    order = Order.objects.filter(razorpay_order_id=gateway_order_id).first()
+    if order is None:
+        logger.warning('Razorpay webhook for unknown order %s', gateway_order_id)
+        return Response({'detail': 'ok'})
+
+    if event_type in ('payment.captured', 'order.paid'):
+        payments.mark_paid(order, entity.get('id', ''))
+    elif event_type == 'payment.failed':
+        payments.mark_failed(order, entity.get('error_description', ''))
+
+    return Response({'detail': 'ok'})

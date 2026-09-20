@@ -39,17 +39,16 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newAccess}`;
           return api(originalRequest);
         } catch (refreshErr) {
+          // Deliberately no `window.location.href = '/'` here. A hard
+          // navigation on a background 401 throws the user to the marketing
+          // page and destroys whatever they were working on — an unsaved
+          // design, a half-filled order. Clear the session and let the route
+          // guard decide where to go, which keeps SPA state intact.
           useAuthStore.getState().logout();
-          if (typeof window !== 'undefined') {
-            window.location.href = '/';
-          }
           return Promise.reject(refreshErr);
         }
       } else {
         useAuthStore.getState().logout();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/';
-        }
       }
     }
     return Promise.reject(error);

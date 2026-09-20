@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/lib/api';
 import { downloadAuthenticatedFile } from '@/lib/download';
 import { Navbar } from '@/components/Navbar';
+import { RequireAuth } from '@/components/RequireAuth';
+import { formatMoney } from '@/lib/currency';
 import type { Order, FabricEstimate } from '@/types/designer';
 
 interface StatusChange {
@@ -35,12 +37,6 @@ export default function AdminOrdersPage() {
   const [historyId, setHistoryId] = useState<number | null>(null);
   const [history, setHistory] = useState<Record<number, StatusChange[]>>({});
   const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isInitialized && !user) {
-      router.replace('/login');
-    }
-  }, [isInitialized, user, router]);
 
   useEffect(() => {
     if (user?.is_staff) {
@@ -99,25 +95,10 @@ export default function AdminOrdersPage() {
     }
   };
 
-  if (!isInitialized || !user) {
-    return null;
-  }
-
-  if (!user.is_staff) {
-    return (
-      <div className="min-h-screen bg-bg font-sans">
-        <Navbar />
-        <main className="max-w-md mx-auto px-sp-3 py-sp-6 text-center space-y-sp-2">
-          <ShieldAlert className="w-8 h-8 text-secondary mx-auto" />
-          <p className="text-sm text-secondary">This page is for staff accounts only.</p>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-bg font-sans">
       <Navbar />
+      <RequireAuth staffOnly>
       <main className="max-w-5xl mx-auto px-sp-3 sm:px-sp-4 py-sp-5 pb-24 md:pb-sp-6">
         <h1 className="font-serif text-3xl sm:text-4xl text-ink mb-sp-4">Production Dashboard</h1>
 
@@ -145,7 +126,7 @@ export default function AdminOrdersPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-sp-2">
-                    <span className="text-sm font-bold text-ink tabular-nums">${order.total_price}</span>
+                    <span className="text-sm font-bold text-ink tabular-nums">{formatMoney(order.total_price)}</span>
                     <select
                       value={order.status}
                       onChange={(e) => changeStatus(order, e.target.value)}
@@ -224,6 +205,7 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </main>
+      </RequireAuth>
     </div>
   );
 }

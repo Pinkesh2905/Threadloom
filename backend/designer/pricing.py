@@ -9,13 +9,13 @@ Price = garment base price
 
 from decimal import Decimal
 
-ZONE_SETUP_FEE = Decimal('5.00')
+ZONE_SETUP_FEE = Decimal('150.00')
 LAYER_FEE_BY_TYPE = {
-    'text': Decimal('2.00'),
-    'image': Decimal('4.00'),
+    'text': Decimal('60.00'),
+    'image': Decimal('120.00'),
     # A pocket is cut, hemmed and stitched on rather than printed, so it's
     # priced as construction rather than as another screen.
-    'pocket': Decimal('6.00'),
+    'pocket': Decimal('180.00'),
 }
 
 
