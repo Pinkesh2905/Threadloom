@@ -9,6 +9,8 @@
 
 import { GARMENT_VIEWBOX } from './garmentArt';
 import { getPrintPolygon, polygonWidthAt, rectFitsInPolygon, type Polygon } from './printZones';
+import { getDesignFont } from './designFonts';
+import { measureTextWidth } from './textMetrics';
 import type { DesignLayer } from '@/types/designer';
 
 export interface LayerIssue {
@@ -20,6 +22,20 @@ export interface LayerIssue {
 }
 
 const IMAGE_BASE_UNITS = GARMENT_VIEWBOX.width * 0.25;
+
+/** Measure once at a reference size, then scale — viewBox units, not px. */
+const MEASURE_REFERENCE_PX = 100;
+
+function textWidthInViewBoxUnits(
+  text: string,
+  sizeInUnits: number,
+  fontFamily: string,
+  fontWeight: string | number,
+): number {
+  if (!text) return 0;
+  const atReference = measureTextWidth(text, MEASURE_REFERENCE_PX, fontFamily, fontWeight);
+  return (atReference / MEASURE_REFERENCE_PX) * sizeInUnits;
+}
 const POCKET_BASE_UNITS = 44;
 
 export function describeLayer(layer: DesignLayer): string {
@@ -36,11 +52,15 @@ export function describeLayer(layer: DesignLayer): string {
 export function estimateLayerBox(layer: DesignLayer): { width: number; height: number } {
   if (layer.type === 'text') {
     const size = (layer.fontSize ?? 11) * layer.scale;
-    const chars = Math.max((layer.text || '').length, 1);
-    // Curving pulls the run inward horizontally and taller vertically.
+    // Measured with the same canvas metrics Konva uses, so this gate and
+    // the canvas agree on whether a string fits. A character-count
+    // heuristic disagreed with the canvas and flagged valid designs.
+    const font = getDesignFont(layer.fontFamily);
+    const width = textWidthInViewBoxUnits(layer.text || '', size, font.family, font.weight ?? 'normal');
+    // Curving bends the run inward horizontally and taller vertically.
     const curveFactor = layer.curve ? Math.max(0.55, 1 - Math.abs(layer.curve) / 260) : 1;
     return {
-      width: size * 0.58 * chars * curveFactor,
+      width: width * curveFactor,
       height: size * (layer.curve ? 1.9 : 1.25),
     };
   }
@@ -66,13 +86,19 @@ function layerRect(layer: DesignLayer) {
 
 /** Largest font size that still fits this layer's text inside the zone. */
 export function maxFontSizeFor(layer: DesignLayer, polygon: Polygon): number {
-  const chars = Math.max((layer.text || '').length, 1);
   const y = (layer.y / 100) * GARMENT_VIEWBOX.height;
   const available = polygonWidthAt(polygon, y);
   if (available <= 0) return 8;
-  const curveFactor = layer.curve ? Math.max(0.55, 1 - Math.abs(layer.curve) / 260) : 1;
-  const raw = available / (0.58 * chars * curveFactor * Math.max(layer.scale, 0.01));
-  return Math.max(4, Math.floor(raw));
+
+  const font = getDesignFont(layer.fontFamily);
+  // Width at one unit of font size, so the cap is a straight division.
+  const widthPerUnit =
+    textWidthInViewBoxUnits(layer.text || '', 1, font.family, font.weight ?? 'normal') *
+    Math.max(layer.scale, 0.01) *
+    (layer.curve ? Math.max(0.55, 1 - Math.abs(layer.curve) / 260) : 1);
+
+  if (widthPerUnit <= 0) return 40;
+  return Math.max(4, Math.floor(available / widthPerUnit));
 }
 
 /** WCAG relative luminance, used to spot invisible tonal prints. */

@@ -6,6 +6,7 @@ import Konva from 'konva';
 import { GARMENT_VIEWBOX } from '@/lib/garmentArt';
 import { ensureDesignFontsLoaded, getDesignFont } from '@/lib/designFonts';
 import { getPrintPolygon, rectFitsInPolygon, type Polygon } from '@/lib/printZones';
+import { inkBoundsFromTextBox, type Rect } from '@/lib/textMetrics';
 import type { DesignLayer } from '@/types/designer';
 import { useHtmlImage } from './useHtmlImage';
 
@@ -25,6 +26,47 @@ interface GarmentCanvasProps {
   onChangeLayer: (id: string, partial: Partial<DesignLayer>) => void;
   /** PNG data URL of this side's artwork, used to bake the 3D texture. */
   onExport?: (dataUrl: string) => void;
+}
+
+/**
+ * The bounds a layer actually occupies on the garment.
+ *
+ * `Text` nodes are given an explicit layout width so `align: center` has
+ * something to centre inside, and getClientRect()/getSelfRect() both report
+ * that box rather than the glyphs — so "HI" measures the width of the whole
+ * stage. Every bounds check has to use the ink extent instead, or no
+ * position ever fits and the layer becomes undraggable.
+ *
+ * Images, pockets and curved text (TextPath, which follows its path and has
+ * no inflated width) are measured normally.
+ */
+export function getInkBounds(node: Konva.Node): Rect {
+  const isPlainText =
+    typeof node.getClassName === 'function' &&
+    node.getClassName() === 'Text' &&
+    typeof (node as Konva.Text).getTextWidth === 'function';
+
+  if (!isPlainText) {
+    const box = node.getClientRect({ skipShadow: true, skipStroke: true });
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  }
+
+  const text = node as Konva.Text;
+  const position = text.absolutePosition();
+  const textHeight =
+    typeof text.getTextHeight === 'function' ? text.getTextHeight() : text.fontSize();
+
+  return inkBoundsFromTextBox({
+    x: position.x,
+    y: position.y,
+    width: text.width(),
+    offsetX: text.offsetX(),
+    offsetY: text.offsetY(),
+    textWidth: text.getTextWidth(),
+    textHeight,
+    align: (text.align() as 'left' | 'center' | 'right') ?? 'center',
+    rotation: text.rotation(),
+  });
 }
 
 /** Base on-garment width of an image layer, in viewBox units. */
@@ -276,7 +318,7 @@ export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
    */
   const dragBoundFunc = useCallback(
     function (this: Konva.Node, pos: { x: number; y: number }) {
-      const box = this.getClientRect({ skipShadow: true, skipStroke: true });
+      const box = getInkBounds(this);
       const current = this.absolutePosition();
       const candidate = {
         x: box.x + (pos.x - current.x),
@@ -359,14 +401,35 @@ export const GarmentCanvas: React.FC<GarmentCanvasProps> = ({
         })}
         <Transformer
           ref={transformerRef}
-          boundBoxFunc={(oldBox, newBox) =>
-            rectFitsInPolygon(
-              { x: newBox.x, y: newBox.y, width: newBox.width, height: newBox.height, rotation: newBox.rotation * (180 / Math.PI) },
-              polygonPx,
-            )
-              ? newBox
-              : oldBox
-          }
+          boundBoxFunc={(oldBox, newBox) => {
+            // The transformer frames the node's client rect, which for text
+            // is the inflated layout box. Re-express the proposed box as
+            // the ink it would contain before testing it.
+            const node = selectedLayerId ? nodeRefs.current[selectedLayerId] : null;
+            let candidate = {
+              x: newBox.x,
+              y: newBox.y,
+              width: newBox.width,
+              height: newBox.height,
+              rotation: newBox.rotation * (180 / Math.PI),
+            };
+            if (node) {
+              const clientBox = node.getClientRect({ skipShadow: true, skipStroke: true });
+              const ink = getInkBounds(node);
+              if (clientBox.width > 0 && clientBox.height > 0) {
+                const scaleX = newBox.width / clientBox.width;
+                const scaleY = newBox.height / clientBox.height;
+                candidate = {
+                  x: newBox.x + (ink.x - clientBox.x) * scaleX,
+                  y: newBox.y + (ink.y - clientBox.y) * scaleY,
+                  width: ink.width * scaleX,
+                  height: ink.height * scaleY,
+                  rotation: candidate.rotation,
+                };
+              }
+            }
+            return rectFitsInPolygon(candidate, polygonPx) ? newBox : oldBox;
+          }}
           rotateEnabled
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
           borderStroke="var(--color-accent)"

@@ -13,6 +13,9 @@
 
 import { GARMENT_VIEWBOX } from './garmentArt';
 import { getGarmentSpec } from './garmentCatalog';
+import type { Rect } from './textMetrics';
+
+export type { Rect };
 
 export type Point = [number, number];
 export type Polygon = Point[];
@@ -98,14 +101,6 @@ export function pointInPolygon(point: Point, polygon: Polygon): boolean {
   return inside;
 }
 
-export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation?: number;
-}
-
 /**
  * The four corners of a rect after rotation about its centre. Konva's
  * getClientRect() already returns an axis-aligned box *containing* the
@@ -115,8 +110,10 @@ export interface Rect {
 export function rectCorners(rect: Rect): Polygon {
   const { x, y, width, height } = rect;
   const rotation = ((rect.rotation ?? 0) * Math.PI) / 180;
-  const cx = x + width / 2;
-  const cy = y + height / 2;
+  // Konva rotates about the node's own position, which only coincides with
+  // the ink centre for centre-aligned text — so honour an explicit pivot.
+  const cx = rect.originX ?? x + width / 2;
+  const cy = rect.originY ?? y + height / 2;
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
 
